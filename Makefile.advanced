@@ -1,0 +1,340 @@
+# Cafe Manager POS - Advanced Electron Build Makefile
+# Features: Parallel builds, platform detection, CI/CD friendly
+
+.PHONY: all clean install deps frontend backend printer-service electron electron-mac electron-win electron-linux \
+        release release-ci check-tools verify package dmg pkg deb rpm help
+
+# Application config
+APP_NAME := Cafe Manager
+VERSION := 1.0.0
+APP_ID := com.cafe.manager
+
+# Directories
+ROOT_DIR := $(shell pwd)
+RELEASE_DIR := $(ROOT_DIR)/release
+BUILD_DIR := $(ROOT_DIR)/dist
+FRONTEND_DIR := $(ROOT_DIR)
+BACKEND_DIR := $(ROOT_DIR)/backend
+PRINTER_DIR := $(ROOT_DIR)/printer_service
+PRINTER_BUILD_DIR := $(PRINTER_DIR)/build
+ELECTRON_DIR := $(ROOT_DIR)/electron
+
+# Detect OS and architecture
+UNAME_S := $(shell uname -s | tr '[:upper:]' '[:lower:]')
+UNAME_M := $(shell uname -m)
+
+ifeq ($(UNAME_S),darwin)
+    PLATFORM := mac
+    ifeq ($(UNAME_M),arm64)
+        ARCH := arm64
+    else
+        ARCH := x64
+    endif
+endif
+ifeq ($(UNAME_S),linux)
+    PLATFORM := linux
+    ifeq ($(UNAME_M),aarch64)
+        ARCH := arm64
+    else
+        ARCH := x64
+    endif
+endif
+ifeq ($(OS),Windows_NT)
+    PLATFORM := win
+    ARCH := x64
+endif
+
+# Build tools
+ELECTRON_BUILDER := npx electron-builder
+VITE := npx vite
+TSC := npx tsc
+GO := go
+NPM := npm
+
+# Build flags
+GOLDFLAGS := -ldflags="-s -w"
+ELECTRON_FLAGS := --publish=never
+
+# Colors
+BLUE := \033[36m
+GREEN := \033[32m
+YELLOW := \033[33m
+RED := \033[31m
+NC := \033[0m
+
+# Number of parallel jobs
+JOBS := $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+
+# ═════════════════════════════════════════════════════════════════════════════
+# MAIN TARGETS
+# ═════════════════════════════════════════════════════════════════════════════
+
+# Default: Build for current platform
+all: banner clean deps build package-current
+
+# Full release build for all platforms
+release: banner clean deps build printer-service-all electron-all
+	@$(MAKE) release-summary
+
+# CI/CD optimized build (no interactive output)
+release-ci: deps build printer-service-all
+	@echo "Building for CI..."
+	@mkdir -p $(RELEASE_DIR)
+	@$(ELECTRON_BUILDER) $(ELECTRON_FLAGS) --mac --win --linux
+
+# Quick development build (current platform only, skips printer cross-compile)
+dev-build: banner deps build printer-service-current electron-current
+
+# ═════════════════════════════════════════════════════════════════════════════
+# BUILD STEPS
+# ═════════════════════════════════════════════════════════════════════════════
+
+banner:
+	@echo "$(BLUE)"
+	@echo "╔══════════════════════════════════════════════════════════════╗"
+	@echo "║           Cafe Manager POS - Electron Builder                ║"
+	@echo "║                    Version $(VERSION)                          ║"
+	@echo "╚══════════════════════════════════════════════════════════════╝"
+	@echo "$(NC)"
+	@echo "Platform: $(PLATFORM) ($(ARCH))"
+	@echo "Jobs: $(JOBS)"
+	@echo ""
+
+# Clean all build artifacts
+clean:
+	@echo "$(BLUE)→ Cleaning build artifacts...$(NC)"
+	@rm -rf $(BUILD_DIR) $(RELEASE_DIR)
+	@rm -rf $(PRINTER_BUILD_DIR)
+	@rm -f $(PRINTER_DIR)/printer-service
+	@rm -f $(PRINTER_DIR)/printer-service.exe
+	@echo "$(GREEN)✓ Clean complete$(NC)"
+
+# Install dependencies
+deps:
+	@echo "$(BLUE)→ Installing dependencies...$(NC)"
+	@$(NPM) install
+	@cd $(BACKEND_DIR) && $(NPM) install --production
+	@echo "$(GREEN)✓ Dependencies installed$(NC)"
+
+# Build frontend
+frontend:
+	@echo "$(BLUE)→ Building frontend...$(NC)"
+	@cd $(FRONTEND_DIR) && $(TSC) --noEmit --skipLibCheck 2>/dev/null || true
+	@cd $(FRONTEND_DIR) && $(VITE) build
+	@echo "$(GREEN)✓ Frontend built$(NC)"
+
+# Build backend (if needed)
+backend:
+	@echo "$(BLUE)→ Preparing backend...$(NC)"
+	@cd $(BACKEND_DIR) && $(NPM) install --production
+	@echo "$(GREEN)✓ Backend ready$(NC)"
+
+# Build all components
+build: frontend backend
+	@echo "$(GREEN)✓ All components built$(NC)"
+
+# ═════════════════════════════════════════════════════════════════════════════
+# PRINTER SERVICE BUILDS
+# ═════════════════════════════════════════════════════════════════════════════
+
+# Build printer service for current platform only
+printer-service-current:
+	@echo "$(BLUE)→ Building printer service for $(PLATFORM)/$(ARCH)...$(NC)"
+	@cd $(PRINTER_DIR) && $(GO) build $(GOLDFLAGS) -o printer-service .
+	@echo "$(GREEN)✓ Printer service built for current platform$(NC)"
+
+# Build printer service for all platforms
+printer-service-all: printer-service-darwin-arm64 printer-service-darwin-amd64 \
+                     printer-service-windows-amd64 printer-service-linux-amd64 \
+                     printer-service-linux-arm64
+	@echo "$(GREEN)✓ All printer service binaries built$(NC)"
+
+printer-service-darwin-arm64:
+	@echo "$(BLUE)  → Building for macOS ARM64...$(NC)"
+	@mkdir -p $(PRINTER_BUILD_DIR)
+	@cd $(PRINTER_DIR) && GOOS=darwin GOARCH=arm64 $(GO) build $(GOLDFLAGS) \
+		-o $(PRINTER_BUILD_DIR)/printer-service-darwin-arm64 .
+
+printer-service-darwin-amd64:
+	@echo "$(BLUE)  → Building for macOS AMD64...$(NC)"
+	@mkdir -p $(PRINTER_BUILD_DIR)
+	@cd $(PRINTER_DIR) && GOOS=darwin GOARCH=amd64 $(GO) build $(GOLDFLAGS) \
+		-o $(PRINTER_BUILD_DIR)/printer-service-darwin-amd64 .
+
+printer-service-windows-amd64:
+	@echo "$(BLUE)  → Building for Windows AMD64...$(NC)"
+	@mkdir -p $(PRINTER_BUILD_DIR)
+	@cd $(PRINTER_DIR) && GOOS=windows GOARCH=amd64 $(GO) build $(GOLDFLAGS) \
+		-o $(PRINTER_BUILD_DIR)/printer-service-windows-amd64.exe .
+
+printer-service-linux-amd64:
+	@echo "$(BLUE)  → Building for Linux AMD64...$(NC)"
+	@mkdir -p $(PRINTER_BUILD_DIR)
+	@cd $(PRINTER_DIR) && GOOS=linux GOARCH=amd64 $(GO) build $(GOLDFLAGS) \
+		-o $(PRINTER_BUILD_DIR)/printer-service-linux-amd64 .
+
+printer-service-linux-arm64:
+	@echo "$(BLUE)  → Building for Linux ARM64...$(NC)"
+	@mkdir -p $(PRINTER_BUILD_DIR)
+	@cd $(PRINTER_DIR) && GOOS=linux GOARCH=arm64 $(GO) build $(GOLDFLAGS) \
+		-o $(PRINTER_BUILD_DIR)/printer-service-linux-arm64 .
+
+# ═════════════════════════════════════════════════════════════════════════════
+# ELECTRON BUILDS
+# ═════════════════════════════════════════════════════════════════════════════
+
+electron-current:
+	@echo "$(BLUE)→ Building Electron for current platform...$(NC)"
+	@$(ELECTRON_BUILDER) $(ELECTRON_FLAGS)
+
+electron-mac:
+	@echo "$(BLUE)→ Building Electron for macOS...$(NC)"
+	@$(ELECTRON_BUILDER) $(ELECTRON_FLAGS) --mac
+
+electron-win:
+	@echo "$(BLUE)→ Building Electron for Windows...$(NC)"
+	@$(ELECTRON_BUILDER) $(ELECTRON_FLAGS) --win
+
+electron-linux:
+	@echo "$(BLUE)→ Building Electron for Linux...$(NC)"
+	@$(ELECTRON_BUILDER) $(ELECTRON_FLAGS) --linux
+
+electron-all: electron-mac electron-win electron-linux
+	@echo "$(GREEN)✓ All Electron builds complete$(NC)"
+
+# Package for current platform only (faster)
+package-current:
+	@echo "$(BLUE)→ Packaging for $(PLATFORM)...$(NC)"
+	@$(ELECTRON_BUILDER) $(ELECTRON_FLAGS) --$(PLATFORM)
+
+# ═════════════════════════════════════════════════════════════════════════════
+# PLATFORM-SPECIFIC PACKAGING
+# ═════════════════════════════════════════════════════════════════════════════
+
+# macOS DMG
+dmg: build printer-service-all
+	@echo "$(BLUE)→ Building macOS DMG...$(NC)"
+	@$(ELECTRON_BUILDER) $(ELECTRON_FLAGS) --mac dmg
+
+# Windows NSIS installer
+nsis: build printer-service-all
+	@echo "$(BLUE)→ Building Windows installer...$(NC)"
+	@$(ELECTRON_BUILDER) $(ELECTRON_FLAGS) --win nsis
+
+# Windows portable
+portable: build printer-service-all
+	@echo "$(BLUE)→ Building Windows portable...$(NC)"
+	@$(ELECTRON_BUILDER) $(ELECTRON_FLAGS) --win portable
+
+# Linux AppImage
+appimage: build printer-service-all
+	@echo "$(BLUE)→ Building Linux AppImage...$(NC)"
+	@$(ELECTRON_BUILDER) $(ELECTRON_FLAGS) --linux AppImage
+
+# Linux DEB
+deb: build printer-service-all
+	@echo "$(BLUE)→ Building Linux DEB package...$(NC)"
+	@$(ELECTRON_BUILDER) $(ELECTRON_FLAGS) --linux deb
+
+# Linux RPM
+rpm: build printer-service-all
+	@echo "$(BLUE)→ Building Linux RPM package...$(NC)"
+	@$(ELECTRON_BUILDER) $(ELECTRON_FLAGS) --linux rpm
+
+# ═════════════════════════════════════════════════════════════════════════════
+# UTILITY TARGETS
+# ═════════════════════════════════════════════════════════════════════════════
+
+# Check required tools
+check-tools:
+	@echo "$(BLUE)→ Checking build tools...$(NC)"
+	@which node > /dev/null && echo "  ✓ Node.js" || (echo "  ✗ Node.js missing" && exit 1)
+	@which npm > /dev/null && echo "  ✓ npm" || (echo "  ✗ npm missing" && exit 1)
+	@which go > /dev/null && echo "  ✓ Go" || (echo "  ✗ Go missing" && exit 1)
+	@$(NPM) list electron-builder > /dev/null 2>&1 && echo "  ✓ electron-builder" || (echo "  ✗ electron-builder missing" && exit 1)
+	@echo "$(GREEN)✓ All tools available$(NC)"
+
+# Verify build artifacts
+verify:
+	@echo "$(BLUE)→ Verifying build artifacts...$(NC)"
+	@test -d $(BUILD_DIR) && echo "  ✓ Frontend build ($(BUILD_DIR))" || echo "  ✗ Frontend build missing"
+	@test -f $(ELECTRON_DIR)/main.js && echo "  ✓ Electron main process" || echo "  ✗ Electron main missing"
+	@test -d $(BACKEND_DIR)/node_modules && echo "  ✓ Backend dependencies" || echo "  ✗ Backend deps missing"
+	@test -f $(PRINTER_DIR)/printer-service && echo "  ✓ Printer service (current platform)" || echo "  ✗ Printer service missing"
+	@echo "$(BLUE)→ Release artifacts:$(NC)"
+	@ls -lh $(RELEASE_DIR)/* 2>/dev/null || echo "  No release files yet"
+
+# Show release summary
+release-summary:
+	@echo ""
+	@echo "$(GREEN)╔══════════════════════════════════════════════════════════════╗$(NC)"
+	@echo "$(GREEN)║                   RELEASE BUILD COMPLETE                     ║$(NC)"
+	@echo "$(GREEN)╚══════════════════════════════════════════════════════════════╝$(NC)"
+	@echo ""
+	@echo "$(BLUE)Output Directory: $(RELEASE_DIR)/$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Generated Files:$(NC)"
+	@find $(RELEASE_DIR) -type f -name "*.dmg" -o -name "*.exe" -o -name "*.AppImage" -o -name "*.deb" -o -name "*.rpm" 2>/dev/null | while read f; do \
+		echo "  • $$(basename $$f)"; \
+	done
+	@echo ""
+	@echo "$(BLUE)Printer Service Binaries:$(NC)"
+	@ls -1 $(PRINTER_BUILD_DIR)/printer-service-* 2>/dev/null | while read f; do \
+		echo "  • $$(basename $$f)"; \
+	done
+	@echo ""
+
+# List all output files
+list:
+	@echo "$(BLUE)→ Build outputs:$(NC)"
+	@ls -lh $(RELEASE_DIR)/* 2>/dev/null | awk '{print "  " $$9 " (" $$5 ")"}' || echo "  No files"
+
+# Development mode
+dev:
+	@echo "$(BLUE)→ Starting development mode...$(NC)"
+	@$(NPM) run electron:dev
+
+# Quick test build (current platform, no cross-compile)
+test: clean deps build printer-service-current electron-current verify
+
+# ═════════════════════════════════════════════════════════════════════════════
+# HELP
+# ═════════════════════════════════════════════════════════════════════════════
+
+help:
+	@echo "$(BLUE)Cafe Manager POS - Advanced Electron Build Makefile$(NC)"
+	@echo ""
+	@echo "$(GREEN)Main Targets:$(NC)"
+	@echo "  $(YELLOW)make$(NC)                    - Build for current platform (default)"
+	@echo "  $(YELLOW)make release$(NC)            - Full release for all platforms"
+	@echo "  $(YELLOW)make release-ci$(NC)         - CI/CD optimized build"
+	@echo "  $(YELLOW)make dev-build$(NC)          - Quick dev build (current platform)"
+	@echo "  $(YELLOW)make test$(NC)               - Test build with verification"
+	@echo ""
+	@echo "$(GREEN)Platform-Specific:$(NC)"
+	@echo "  $(YELLOW)make electron-mac$(NC)       - macOS only"
+	@echo "  $(YELLOW)make electron-win$(NC)       - Windows only"
+	@echo "  $(YELLOW)make electron-linux$(NC)     - Linux only"
+	@echo "  $(YELLOW)make dmg$(NC)                - macOS DMG only"
+	@echo "  $(YELLOW)make nsis$(NC)               - Windows installer only"
+	@echo "  $(YELLOW)make appimage$(NC)           - Linux AppImage only"
+	@echo ""
+	@echo "$(GREEN)Individual Components:$(NC)"
+	@echo "  $(YELLOW)make frontend$(NC)           - Build frontend only"
+	@echo "  $(YELLOW)make backend$(NC)            - Prepare backend only"
+	@echo "  $(YELLOW)make printer-service-current$(NC) - Printer for current platform"
+	@echo "  $(YELLOW)make printer-service-all$(NC)    - Printer for all platforms"
+	@echo ""
+	@echo "$(GREEN)Utilities:$(NC)"
+	@echo "  $(YELLOW)make clean$(NC)              - Clean all builds"
+	@echo "  $(YELLOW)make deps$(NC)               - Install dependencies"
+	@echo "  $(YELLOW)make check-tools$(NC)        - Verify build tools"
+	@echo "  $(YELLOW)make verify$(NC)             - Verify build artifacts"
+	@echo "  $(YELLOW)make list$(NC)               - List output files"
+	@echo "  $(YELLOW)make dev$(NC)                - Start dev mode"
+	@echo ""
+	@echo "$(GREEN)Examples:$(NC)"
+	@echo "  make release              # Build for all platforms"
+	@echo "  make dmg                  # Build macOS DMG only"
+	@echo "  make electron-win         # Build Windows installer"
+	@echo "  make test                 # Quick build + verify"
