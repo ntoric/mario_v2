@@ -1,9 +1,9 @@
-node_modules
+# node_modules
 dist/*
 dist/
-node_modules/*
-build/
-release/
+# node_modules/*
+# build/
+# release/
 
 # Flutter/Dart specific
 .dart_tool/
@@ -12,7 +12,7 @@ release/
 .packages
 .pub-cache/
 .pub/
-build/
+# build/
 coverage/
 
 # Android
