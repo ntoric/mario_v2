@@ -1,2 +1,0 @@
-/Users/apple/Projects/test/cmd/mario_app/build/.cxx/debug/661v19b4/armeabi-v7a/CMakeFiles/edit_cache.dir
-/Users/apple/Projects/test/cmd/mario_app/build/.cxx/debug/661v19b4/armeabi-v7a/CMakeFiles/rebuild_cache.dir

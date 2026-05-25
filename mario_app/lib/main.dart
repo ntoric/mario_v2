@@ -68,9 +68,9 @@ class _AppInitializerState extends State<AppInitializer> {
     final auth = context.watch<AuthProvider>();
 
     // If database is not connected, show connecting splash screen
-    if (!auth.isDbConnected) {
-      return const SplashScreen(status: 'Connecting to Database...');
-    }
+    // if (!auth.isDbConnected) {
+    //   return const SplashScreen(status: 'Connecting to Database...');
+    // }
 
     // Database is connected! Check if authenticated
     if (auth.isAuthenticated) {

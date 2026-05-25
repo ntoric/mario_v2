@@ -70,7 +70,7 @@ class _OrderScreenState extends State<OrderScreen> {
 
   double get _taxAmount => _orderItems.fold(
         0,
-        (sum, item) => sum + (item.item.price * item.quantity * item.item.taxPercent / 100),
+        (sum, item) => sum + (item.item.price * item.quantity * (item.item.taxPercent ?? 0) / 100),
       );
 
   double get _total => _subtotal + _taxAmount;
@@ -178,6 +178,16 @@ class _OrderScreenState extends State<OrderScreen> {
       final auth = context.read<AuthProvider>();
       final data = context.read<DataProvider>();
       final storeId = auth.currentStore!.id;
+      print("Save Order");
+      print(auth.user);
+      print(auth.currentStore);
+      print(auth.isAuthenticated);
+      print(auth.isBackendConnected);
+      print(data.tables);
+      print(data.categories);
+      print(data.items);
+      print(data.orders);
+      print(data.bills);
 
       final itemsData = _orderItems.map((i) => {
         'itemId': i.itemId,
@@ -186,14 +196,20 @@ class _OrderScreenState extends State<OrderScreen> {
       }).toList();
 
       if (widget.isNewOrder) {
-        final order = await data.createOrder(
-          tableId: widget.table.id,
-          tableNumber: widget.table.number,
-          items: itemsData,
-          totalAmount: _total,
-          taxAmount: _taxAmount,
-          storeId: storeId,
-        );
+        // try{
+          final order = await data.createOrder(
+            tableId: widget.table.id,
+            tableNumber: widget.table.number,
+            items: itemsData,
+            totalAmount: _total,
+            taxAmount: _taxAmount,
+            storeId: storeId,
+          );
+        // } catch (e,stack){
+        //   print("CREATE ORDER ERROR 1:");
+        //   print(e);
+        //   print(stack);
+        // }
 
         if (order != null) {
           _showFeedback('Order created for Table ${widget.table.number}');
@@ -634,7 +650,7 @@ class _OrderScreenState extends State<OrderScreen> {
                                   color: AppColors.primary,
                                 ),
                               ),
-                              if (item.taxPercent > 0)
+                              if ((item.taxPercent ?? 0) > 0)
                                 Text(
                                   '+ ${item.taxPercent}% tax',
                                   style: const TextStyle(

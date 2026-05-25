@@ -275,7 +275,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           title: Row(
                             children: [
                               Text(
-                                'Table ${order.tableNumber}',
+                                order.tableNumber == 0 ? 'Parcel Order' : 'Table ${order.tableNumber}',
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
                                 ),

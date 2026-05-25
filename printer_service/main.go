@@ -50,7 +50,7 @@ func main() {
 	r.POST("/print", func(c *gin.Context) {
 		// Try to bind as PrintJob first (this is what the modern frontend sends)
 		var job printer.PrintJob
-		if err := c.ShouldBindBodyWithJSON(&job); err == nil && job.Type != "" {
+		if err := c.ShouldBindJSON(&job); err == nil && job.Type != "" {
 			fmt.Printf("Received PrintJob for %s, type: %s\n", job.Printer.Name, job.Type)
 			err = printer.Print(job)
 			if err != nil {

@@ -7,7 +7,7 @@ class Item {
   final String? description;
   final double price;
   final String? hsnCode;
-  final double taxPercent;
+  final double? taxPercent;
   final bool isActive;
 
   Item({
@@ -19,28 +19,53 @@ class Item {
     this.description,
     required this.price,
     this.hsnCode,
-    required this.taxPercent,
+    this.taxPercent,
     required this.isActive,
   });
 
-  static double _parseDouble(dynamic val) {
-    if (val == null) return 0.0;
-    if (val is num) return val.toDouble();
-    return double.tryParse(val.toString()) ?? 0.0;
+
+  static double _parseDouble(dynamic value) {
+    if (value == null) return 0.0;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    return double.tryParse(value.toString()) ?? 0.0;
   }
+
 
   factory Item.fromJson(Map<String, dynamic> json) {
     return Item(
-      id: json['id'],
-      storeId: json['storeId'] ?? json['store_id'],
-      categoryId: json['categoryId'] ?? json['category_id'],
-      categoryName: json['categoryName'] ?? json['category_name'] ?? json['category_id'],
-      name: json['name'],
-      description: json['description'],
+      id: json['id']?.toString() ?? '',
+
+      storeId:
+          json['storeId']?.toString() ??
+          json['store_id']?.toString() ??
+          '',
+
+      categoryId:
+          json['categoryId']?.toString() ??
+          json['category_id']?.toString() ??
+          '',
+
+      name: json['name']?.toString() ?? '',
+
+      description:
+          json['description']?.toString() ?? '',
+
       price: _parseDouble(json['price']),
-      hsnCode: json['hsnCode'] ?? json['hsn_code'],
-      taxPercent: _parseDouble(json['taxPercent'] ?? json['tax_percent']),
-      isActive: json['isActive'] ?? json['is_active'] ?? true,
+
+      hsnCode:
+          json['hsnCode']?.toString() ??
+          json['hsn_code']?.toString() ??
+          '',
+
+      taxPercent: _parseDouble(
+        json['taxPercent'] ?? json['tax_percent'],
+      ),
+
+      isActive:
+          json['isActive'] ??
+          json['is_active'] ??
+          true,
     );
   }
 

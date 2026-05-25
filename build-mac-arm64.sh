@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Build script for macOS ARM64 Electron app with embedded env variables
-# This creates a standalone app bundle with backend and printer service
+# This creates a standalone app bundle with backend
 
 set -e
 
@@ -25,8 +25,7 @@ fi
 echo -e "${YELLOW}Cleaning previous builds...${NC}"
 rm -rf dist/
 rm -rf release/
-rm -rf backend-go/build/
-rm -rf printer_service/build/
+rm -rf backend/build/
 
 # Step 1: Install dependencies
 echo -e "${YELLOW}Installing dependencies...${NC}"
@@ -42,19 +41,12 @@ npx vite build
 
 # Step 4: Build Go backend for macOS ARM64
 echo -e "${YELLOW}Building Go backend for macOS ARM64...${NC}"
-cd backend-go
+cd backend
 mkdir -p build
 GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o build/cafe-backend-darwin-arm64 cmd/server/main.go
 cd ..
 
-# Step 5: Build printer service for macOS ARM64
-echo -e "${YELLOW}Building printer service for macOS ARM64...${NC}"
-cd printer_service
-mkdir -p build
-GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o build/printer-service-darwin-arm64 .
-cd ..
-
-# Step 6: Build Electron app
+# Step 5: Build Electron app
 echo -e "${YELLOW}Building Electron app...${NC}"
 npx electron-builder --mac --arm64
 

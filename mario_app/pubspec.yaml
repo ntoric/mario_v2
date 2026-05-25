@@ -38,6 +38,7 @@ dependencies:
   dropdown_button2: ^2.3.9
   flutter_slidable: ^3.0.1
   skeletonizer: ^1.1.1
+  url_launcher: ^6.2.2
 
 flutter:
   uses-material-design: true

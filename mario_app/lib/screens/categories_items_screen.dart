@@ -108,49 +108,6 @@ class _CategoriesItemsScreenState extends State<CategoriesItemsScreen> with Sing
                   
                   Navigator.pop(context); // Close dialog
 
-                  if (category == null) {
-                    final newCat = await data.createCategory(
-                      name: name,
-                      description: description,
-                      storeId: auth.currentStore!.id,
-                    );
-                    if (newCat != null && mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Category "$name" created successfully'),
-                          backgroundColor: AppColors.success,
-                        ),
-                      );
-                    } else if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Error creating category: ${data.error ?? 'Unknown error'}'),
-                          backgroundColor: AppColors.danger,
-                        ),
-                      );
-                    }
-                  } else {
-                    final success = await data.updateCategory(
-                      categoryId: category.id,
-                      name: name,
-                      description: description,
-                    );
-                    if (success && mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Category updated to "$name"'),
-                          backgroundColor: AppColors.success,
-                        ),
-                      );
-                    } else if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Error updating category: ${data.error ?? 'Unknown error'}'),
-                          backgroundColor: AppColors.danger,
-                        ),
-                      );
-                    }
-                  }
                 }
               },
               child: const Text('Save'),
@@ -161,86 +118,13 @@ class _CategoriesItemsScreenState extends State<CategoriesItemsScreen> with Sing
     );
   }
 
-  // --- Category Delete Confirmation ---
-  void _confirmDeleteCategory(Category category) {
-    final data = context.read<DataProvider>();
-    final itemsCount = data.items.where((i) => i.categoryId == category.id).length;
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Delete Category?'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Are you sure you want to delete category "${category.name}"?'),
-              if (itemsCount > 0) ...[
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.warning.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.warning),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.warning_amber_rounded, color: AppColors.warning),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Warning: This category contains $itemsCount items. Deleting it will detach these items.',
-                          style: const TextStyle(fontSize: 12, color: AppColors.warning),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                Navigator.pop(context);
-                final success = await data.deleteCategory(category.id);
-                if (success && mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Category "${category.name}" deleted'),
-                      backgroundColor: AppColors.danger,
-                    ),
-                  );
-                } else if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Error deleting category: ${data.error ?? 'Unknown error'}'),
-                      backgroundColor: AppColors.danger,
-                    ),
-                  );
-                }
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
-              child: const Text('Delete'),
-            ),
-          ],
-        );
-      },
-    );
-  }
 
   // --- Item Dialog Form ---
   void _showItemDialog({Item? item}) {
     final nameController = TextEditingController(text: item?.name ?? '');
     final priceController = TextEditingController(text: item != null ? item.price.toStringAsFixed(2) : '');
     final hsnController = TextEditingController(text: item?.hsnCode ?? '');
-    final taxController = TextEditingController(text: item != null ? item.taxPercent.toStringAsFixed(1) : '5.0');
+    final taxController = TextEditingController(text: item?.taxPercent?.toStringAsFixed(1) ?? '0.0',);
     final descriptionController = TextEditingController(text: item?.description ?? '');
     final formKey = GlobalKey<FormState>();
 
@@ -396,57 +280,6 @@ class _CategoriesItemsScreenState extends State<CategoriesItemsScreen> with Sing
 
                       Navigator.pop(context); // Close dialog
 
-                      if (item == null) {
-                        final newItem = await data.createItem(
-                          categoryId: selectedCatId,
-                          name: name,
-                          description: description,
-                          price: price,
-                          hsnCode: hsn,
-                          taxPercent: tax,
-                          storeId: auth.currentStore!.id,
-                        );
-                        if (newItem != null && mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Item "$name" added'),
-                              backgroundColor: AppColors.success,
-                            ),
-                          );
-                        } else if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Error adding item: ${data.error ?? 'Unknown error'}'),
-                              backgroundColor: AppColors.danger,
-                            ),
-                          );
-                        }
-                      } else {
-                        final success = await data.updateItem(
-                          itemId: item.id,
-                          categoryId: selectedCatId,
-                          name: name,
-                          description: description,
-                          price: price,
-                          hsnCode: hsn,
-                          taxPercent: tax,
-                        );
-                        if (success && mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Item "$name" updated'),
-                              backgroundColor: AppColors.success,
-                            ),
-                          );
-                        } else if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Error updating item: ${data.error ?? 'Unknown error'}'),
-                              backgroundColor: AppColors.danger,
-                            ),
-                          );
-                        }
-                      }
                     }
                   },
                   child: const Text('Save'),
@@ -454,50 +287,6 @@ class _CategoriesItemsScreenState extends State<CategoriesItemsScreen> with Sing
               ],
             );
           },
-        );
-      },
-    );
-  }
-
-  // --- Item Delete Confirmation ---
-  void _confirmDeleteItem(Item item) {
-    final data = context.read<DataProvider>();
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Delete Food Item?'),
-          content: Text('Are you sure you want to delete food/beverage item "${item.name}"?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                Navigator.pop(context);
-                final success = await data.deleteItem(item.id);
-                if (success && mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Item "${item.name}" deleted'),
-                      backgroundColor: AppColors.danger,
-                    ),
-                  );
-                } else if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Error deleting item: ${data.error ?? 'Unknown error'}'),
-                      backgroundColor: AppColors.danger,
-                    ),
-                  );
-                }
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
-              child: const Text('Delete'),
-            ),
-          ],
         );
       },
     );
@@ -685,18 +474,6 @@ class _CategoriesItemsScreenState extends State<CategoriesItemsScreen> with Sing
                       ],
                     ),
                   ),
-                  if (!isStaff) ...[
-                    IconButton(
-                      icon: const Icon(Icons.edit_outlined, color: AppColors.info, size: 20),
-                      onPressed: () => _showCategoryDialog(category: cat),
-                      tooltip: 'Edit Category',
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete_outline_rounded, color: AppColors.danger, size: 20),
-                      onPressed: () => _confirmDeleteCategory(cat),
-                      tooltip: 'Delete Category',
-                    ),
-                  ],
                 ],
               ),
             ),
@@ -931,18 +708,6 @@ class _CategoriesItemsScreenState extends State<CategoriesItemsScreen> with Sing
                               ? null
                               : Row(
                                   mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(Icons.edit_outlined, color: AppColors.info, size: 20),
-                                      onPressed: () => _showItemDialog(item: item),
-                                      tooltip: 'Edit Item',
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(Icons.delete_outline_rounded, color: AppColors.danger, size: 20),
-                                      onPressed: () => _confirmDeleteItem(item),
-                                      tooltip: 'Delete Item',
-                                    ),
-                                  ],
                                 ),
                         ),
                       );

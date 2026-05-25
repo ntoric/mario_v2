@@ -52,27 +52,61 @@ class Order {
     return int.tryParse(val.toString()) ?? 0;
   }
 
-  factory Order.fromJson(Map<String, dynamic> json) {
-    return Order(
-      id: json['id'],
-      storeId: json['storeId'] ?? json['store_id'],
-      tableId: json['tableId'] ?? json['table_id'],
-      tableNumber: _parseInt(json['tableNumber'] ?? json['table_number']),
-      items: (json['items'] as List?)
-              ?.map((i) => OrderItem.fromJson(i))
-              .toList() ??
-          [],
-      status: json['status'],
-      totalAmount: _parseDouble(json['totalAmount'] ?? json['total_amount']),
-      taxAmount: _parseDouble(json['taxAmount'] ?? json['tax_amount']),
-      discountAmount: _parseDouble(json['discountAmount'] ?? json['discount_amount']),
-      paymentMethod: json['paymentMethod'] ?? json['payment_method'],
-      paymentStatus: json['paymentStatus'] ?? json['payment_status'],
-      createdAt: _parseDateTime(json['createdAt'] ?? json['created_at']),
-      updatedAt: _parseDateTime(json['updatedAt'] ?? json['updated_at']),
-      createdBy: json['createdBy'] ?? json['created_by'],
-    );
-  }
+  // factory Order.fromJson(Map<String, dynamic> json) {
+  //   return Order(
+  //     id: json['id'],
+  //     storeId: json['storeId'] ?? json['store_id'],
+  //     tableId: json['tableId'] ?? json['table_id'],
+  //     tableNumber: _parseInt(json['tableNumber'] ?? json['table_number']),
+  //     items: (json['items'] as List?)
+  //             ?.map((i) => OrderItem.fromJson(i))
+  //             .toList() ??
+  //         [],
+  //     status: json['status'],
+  //     totalAmount: _parseDouble(json['totalAmount'] ?? json['total_amount']),
+  //     taxAmount: _parseDouble(json['taxAmount'] ?? json['tax_amount']),
+  //     discountAmount: _parseDouble(json['discountAmount'] ?? json['discount_amount']),
+  //     paymentMethod: json['paymentMethod'] ?? json['payment_method'],
+  //     paymentStatus: json['paymentStatus'] ?? json['payment_status'],
+  //     createdAt: _parseDateTime(json['createdAt'] ?? json['created_at']),
+  //     updatedAt: _parseDateTime(json['updatedAt'] ?? json['updated_at']),
+  //     createdBy: json['createdBy'] ?? json['created_by'],
+  //   );
+  // }
+    factory Order.fromJson(Map<String, dynamic> json) {
+      return Order(
+        id: json['id']?.toString() ?? '',
+        storeId: json['storeId']?.toString() ??
+            json['store_id']?.toString() ??
+            '',
+        tableId: json['tableId']?.toString() ??
+            json['table_id']?.toString() ??
+            '',
+        tableNumber: _parseInt(json['tableNumber'] ?? json['table_number']),
+        items: (json['items'] as List?)
+                ?.map((i) => OrderItem.fromJson(i))
+                .toList() ??
+            [],
+        status: json['status']?.toString() ?? 'active',
+        totalAmount:
+            _parseDouble(json['totalAmount'] ?? json['total_amount']),
+        taxAmount:
+            _parseDouble(json['taxAmount'] ?? json['tax_amount']),
+        discountAmount:
+            _parseDouble(json['discountAmount'] ?? json['discount_amount']),
+        paymentMethod:
+            json['paymentMethod'] ?? json['payment_method'],
+        paymentStatus:
+            json['paymentStatus'] ?? json['payment_status'],
+        createdAt:
+            _parseDateTime(json['createdAt'] ?? json['created_at']),
+        updatedAt:
+            _parseDateTime(json['updatedAt'] ?? json['updated_at']),
+        createdBy: json['createdBy']?.toString() ??
+            json['created_by']?.toString() ??
+            '',
+      );
+    }
 
   Map<String, dynamic> toJson() {
     return {

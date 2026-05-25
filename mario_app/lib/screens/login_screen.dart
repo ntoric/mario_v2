@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import '../providers/auth_provider.dart';
 import '../providers/data_provider.dart';
 import '../utils/constants.dart';
 import 'home_screen.dart';
+import 'support_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -37,6 +40,50 @@ class _LoginScreenState extends State<LoginScreen> {
     );
 
     if (success && mounted) {
+      // Check if store is active
+      final store = auth.currentStore;
+      final user = auth.user;
+      
+      // If user is not superadmin and store is inactive, show support page
+      if (user?.role != 'superadmin' && store != null && !store.isActive) {
+        // Fetch support config
+        try {
+          final response = await http.get(
+            Uri.parse('${auth.backend.api.baseUrl}/support-config'),
+          );
+          
+          if (response.statusCode == 200) {
+            final data = json.decode(response.body);
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (_) => SupportScreen(
+                  email: data['email'] ?? '',
+                  phone: data['phone'] ?? '',
+                  whatsappLink: data['whatsappLink'] ?? '',
+                  storeName: store.name,
+                  storeBranch: store.branch,
+                ),
+              ),
+            );
+            return;
+          }
+        } catch (e) {
+          // If support config fetch fails, show support page with empty values
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (_) => SupportScreen(
+                email: '',
+                phone: '',
+                whatsappLink: '',
+                storeName: store.name,
+                storeBranch: store.branch,
+              ),
+            ),
+          );
+          return;
+        }
+      }
+      
       final dataProvider = context.read<DataProvider>();
       await dataProvider.loadAllData(auth);
       
@@ -91,17 +138,22 @@ class _LoginScreenState extends State<LoginScreen> {
                       width: 80,
                       height: 80,
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [AppColors.primary, AppColors.primaryDark],
-                        ),
+                        color: Colors.white,
                         borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
                       ),
-                      child: const Icon(
-                        Icons.restaurant_menu,
-                        size: 40,
-                        color: AppColors.light,
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Image.asset(
+                          'assets/images/logo.png',
+                          fit: BoxFit.contain,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -113,35 +165,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         color: AppColors.dark,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: auth.isDbConnected 
-                            ? AppColors.success.withOpacity(0.1) 
-                            : AppColors.warning.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.circle,
-                            size: 8,
-                            color: auth.isDbConnected ? AppColors.success : AppColors.warning,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            auth.isDbConnected ? 'Database Connected' : 'Database Disconnected',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: auth.isDbConnected ? AppColors.success : AppColors.warning,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                    // const SizedBox(height: 8),
                     const SizedBox(height: 24),
                     if (auth.error != null)
                       Container(

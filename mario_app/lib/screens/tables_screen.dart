@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
@@ -19,14 +21,17 @@ class TablesScreen extends StatefulWidget {
 
 class _TablesScreenState extends State<TablesScreen> with RouteAware {
   bool _isRefreshing = false;
-  Timer? _silentUpdateTimer;
+  WebSocket? _tableStatusSocket;
+  StreamSubscription? _tableStatusSubscription;
+  Timer? _wsReconnectTimer;
+  bool _isSocketActive = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _refreshData();
-      _startSilentUpdateTimer();
+      _startTableStatusRealtime();
     });
   }
 
@@ -42,7 +47,7 @@ class _TablesScreenState extends State<TablesScreen> with RouteAware {
   @override
   void dispose() {
     routeObserver.unsubscribe(this);
-    _stopSilentUpdateTimer();
+    _stopTableStatusRealtime();
     super.dispose();
   }
 
@@ -50,25 +55,84 @@ class _TablesScreenState extends State<TablesScreen> with RouteAware {
   void didPopNext() {
     // Called when this route becomes visible again
     _refreshData();
-    _startSilentUpdateTimer();
+    _startTableStatusRealtime();
   }
 
   @override
   void didPushNext() {
     // Called when navigating to another route
-    _stopSilentUpdateTimer();
+    _stopTableStatusRealtime();
   }
 
-  void _startSilentUpdateTimer() {
-    _silentUpdateTimer?.cancel();
-    _silentUpdateTimer = Timer.periodic(const Duration(seconds: 10), (_) {
-      _silentRefreshData();
+  void _startTableStatusRealtime() {
+    _stopTableStatusRealtime();
+    _isSocketActive = true;
+    _connectTableStatusSocket();
+  }
+
+  void _stopTableStatusRealtime() {
+    _isSocketActive = false;
+    _wsReconnectTimer?.cancel();
+    _wsReconnectTimer = null;
+    _tableStatusSubscription?.cancel();
+    _tableStatusSubscription = null;
+    _tableStatusSocket?.close();
+    _tableStatusSocket = null;
+  }
+
+  Future<void> _connectTableStatusSocket() async {
+    if (!mounted || !_isSocketActive) return;
+
+    final auth = context.read<AuthProvider>();
+    final storeId = auth.currentStore?.id;
+    final token = auth.backend.api.token;
+    if (storeId == null || token == null || token.isEmpty) {
+      return;
+    }
+
+    try {
+      final baseUri = Uri.parse(auth.backend.api.baseUrl);
+      final wsScheme = baseUri.scheme == 'https' ? 'wss' : 'ws';
+      final wsUri = Uri(
+        scheme: wsScheme,
+        host: baseUri.host,
+        port: baseUri.hasPort ? baseUri.port : null,
+        path: '/api/ws/tables-status',
+        queryParameters: {
+          'storeId': storeId,
+          'token': token,
+        },
+      );
+
+      _tableStatusSocket = await WebSocket.connect(wsUri.toString());
+      _tableStatusSubscription = _tableStatusSocket!.listen(
+        (event) async {
+          if (!mounted) return;
+          try {
+            final message = jsonDecode(event as String);
+            if (message is Map<String, dynamic> &&
+                message['type'] == 'table_status_update') {
+              await _silentRefreshData();
+            }
+          } catch (_) {
+            // Ignore non-JSON/control frames.
+          }
+        },
+        onDone: _scheduleWsReconnect,
+        onError: (_) => _scheduleWsReconnect(),
+        cancelOnError: true,
+      );
+    } catch (_) {
+      _scheduleWsReconnect();
+    }
+  }
+
+  void _scheduleWsReconnect() {
+    if (!_isSocketActive) return;
+    _wsReconnectTimer?.cancel();
+    _wsReconnectTimer = Timer(const Duration(seconds: 2), () {
+      _connectTableStatusSocket();
     });
-  }
-
-  void _stopSilentUpdateTimer() {
-    _silentUpdateTimer?.cancel();
-    _silentUpdateTimer = null;
   }
 
   Future<void> _silentRefreshData() async {

@@ -8,13 +8,14 @@ import '../models/item.dart';
 import '../models/order.dart';
 import '../models/bill.dart';
 import '../models/statistics.dart';
+import '../models/app_update.dart';
 
 class ApiService {
   static final ApiService _instance = ApiService._internal();
   factory ApiService() => _instance;
   ApiService._internal();
 
-  String _baseUrl = 'http://localhost:3001/api';
+  String _baseUrl = 'https://mario-v2-backend.ntoric.com/api';
   String? _token;
 
   void setBaseUrl(String url) {
@@ -24,10 +25,11 @@ class ApiService {
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     _token = prefs.getString('auth_token');
-    final savedUrl = prefs.getString('api_url');
-    if (savedUrl != null) {
-      _baseUrl = savedUrl;
-    }
+    // final savedUrl = prefs.getString('api_url');
+    // if (savedUrl != null) {
+    //   _baseUrl = savedUrl;
+    // }
+    await prefs.setString('api_url', _baseUrl);
   }
 
   Future<void> saveBaseUrl(String url) async {
@@ -162,17 +164,69 @@ class ApiService {
     return (data as List).map((o) => Order.fromJson(o)).toList();
   }
 
+  // Future<Order> createOrder(Map<String, dynamic> orderData) async {
+  //   final response = await http.post(
+  //     Uri.parse('$_baseUrl/orders'),
+  //     headers: _headers,
+  //     body: jsonEncode(orderData),
+  //   );
+  //   final data = await _handleResponse(response);
+  //   return Order.fromJson(data);
+  // }
   Future<Order> createOrder(Map<String, dynamic> orderData) async {
-    final response = await http.post(
-      Uri.parse('$_baseUrl/orders'),
-      headers: _headers,
-      body: jsonEncode(orderData),
-    );
-    final data = await _handleResponse(response);
-    return Order.fromJson(data);
+    try {
+      final response = await http.post(
+        Uri.parse('$_baseUrl/orders'),
+        headers: _headers,
+        body: jsonEncode(orderData),
+      );
+
+      print("STATUS CODE: ${response.statusCode}");
+      print("RAW RESPONSE:");
+      print(response.body);
+
+      final data = await _handleResponse(response);
+
+      print("PARSED RESPONSE:");
+      print(data);
+
+      return Order.fromJson(data['order'] ?? data);
+    } catch (e, stack) {
+      print("API CREATE ORDER ERROR:");
+      print(e);
+      print(stack);
+      rethrow;
+    }
   }
 
-  Future<Order> updateOrder(String orderId, Map<String, dynamic> orderData) async {
+  Future<Order> createParcelOrder(Map<String, dynamic> orderData) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$_baseUrl/orders/parcel'),
+        headers: _headers,
+        body: jsonEncode(orderData),
+      );
+
+      print("STATUS CODE: ${response.statusCode}");
+      print("RAW RESPONSE:");
+      print(response.body);
+
+      final data = await _handleResponse(response);
+
+      print("PARSED RESPONSE:");
+      print(data);
+
+      return Order.fromJson(data['order'] ?? data);
+    } catch (e, stack) {
+      print("API CREATE PARCEL ORDER ERROR:");
+      print(e);
+      print(stack);
+      rethrow;
+    }
+  }
+
+  Future<Order> updateOrder(
+      String orderId, Map<String, dynamic> orderData) async {
     final response = await http.put(
       Uri.parse('$_baseUrl/orders/$orderId'),
       headers: _headers,
@@ -226,6 +280,27 @@ class ApiService {
     return Bill.fromJson(data);
   }
 
+  Future<void> enqueueBill(Map<String, dynamic> billData) async {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/bills/queue'),
+      headers: _headers,
+      body: jsonEncode(billData),
+    );
+    final data = await _handleResponse(response);
+    print(data);
+  }
+
+  Future<List<Map<String, dynamic>>> getBillQueue(String storeId) async {
+    final response = await http.get(
+      Uri.parse('$_baseUrl/bills/queue?storeId=$storeId'),
+      headers: _headers,
+    );
+    final data = await _handleResponse(response);
+    return (data as List)
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+  }
+
   // Users
   Future<List<User>> getUsers() async {
     final response = await http.get(
@@ -236,7 +311,8 @@ class ApiService {
     return (data as List).map((u) => User.fromJson(u)).toList();
   }
 
-  Future<void> changePassword(String currentPassword, String newPassword) async {
+  Future<void> changePassword(
+      String currentPassword, String newPassword) async {
     await http.post(
       Uri.parse('$_baseUrl/users/change-password'),
       headers: _headers,
@@ -255,6 +331,37 @@ class ApiService {
     );
     final data = await _handleResponse(response);
     return SystemStats.fromJson(data);
+  }
+
+  // App Update
+  Future<AppUpdate?> getAppUpdate({String platform = 'mobile'}) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_baseUrl/app-update?platform=$platform'),
+        headers: _headers,
+      );
+      final data = await _handleResponse(response);
+      if (data['enabled'] == false) {
+        return null;
+      }
+      return AppUpdate.fromJson(data);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<AppUpdate> updateAppUpdate(Map<String, dynamic> updateData) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$_baseUrl/app-update'),
+        headers: _headers,
+        body: jsonEncode(updateData),
+      );
+      final data = await _handleResponse(response);
+      return AppUpdate.fromJson(data['update'] ?? data);
+    } catch (e) {
+      rethrow;
+    }
   }
 
   // Health Check

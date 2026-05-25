@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../providers/auth_provider.dart';
 import '../providers/data_provider.dart';
 import '../utils/constants.dart';
 import 'login_screen.dart';
+import 'app_update_screen.dart';
 
 
 class SettingsScreen extends StatefulWidget {
@@ -21,6 +23,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _obscureNewPassword = true;
   bool _obscureConfirmPassword = true;
   bool _isChangingPassword = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<DataProvider>().loadAppUpdate(platform: 'mobile');
+    });
+  }
 
   @override
   void dispose() {
@@ -149,7 +159,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final auth = context.watch<AuthProvider>();
     final user = auth.user;
     final data = context.watch<DataProvider>();
-    final config = auth.backend.database.config;
 
     return Scaffold(
       appBar: AppBar(
@@ -229,29 +238,104 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
           ),
-          if (user?.role == 'superadmin') ...[
-            const SizedBox(height: 16),
-            _buildSectionTitle('Database'),
+          const SizedBox(height: 16),
+          
+          // App Update Notification
+          if (data.appUpdate != null && 
+              data.appUpdate!.enabled && 
+              VersionHelper.isNewerVersion(AppConstants.appVersion, data.appUpdate!.version))
             Card(
-              child: Column(
-                children: [
-                  ListTile(
-                    leading: const Icon(Icons.storage, color: AppColors.primary),
-                    title: const Text('Database Connection'),
-                    subtitle: Text('${config.host}:${config.port}/${config.database}'),
-                    trailing: Container(
-                      width: 12,
-                      height: 12,
-                      decoration: BoxDecoration(
-                        color: auth.isDbConnected ? AppColors.success : AppColors.danger,
-                        shape: BoxShape.circle,
+              color: AppColors.primary.withOpacity(0.1),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.system_update,
+                          color: AppColors.primary,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'New Version Available',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                              Text(
+                                'Version ${data.appUpdate!.version}',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: AppColors.gray600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (data.appUpdate!.releaseNotes != null && data.appUpdate!.releaseNotes!.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        data.appUpdate!.releaseNotes!,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: AppColors.gray600,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          final url = Uri.parse(data.appUpdate!.downloadUrl);
+                          try {
+                            final launched = await launchUrl(
+                              url,
+                              mode: LaunchMode.externalApplication,
+                            );
+                            if (!launched) {
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Could not open download URL'),
+                                    backgroundColor: AppColors.danger,
+                                  ),
+                                );
+                              }
+                            }
+                          } catch (e) {
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Error opening URL: $e'),
+                                  backgroundColor: AppColors.danger,
+                                ),
+                              );
+                            }
+                          }
+                        },
+                        icon: const Icon(Icons.download, size: 20),
+                        label: const Text('Download Update'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ],
+          
           const SizedBox(height: 16),
           _buildSectionTitle('Change Password'),
           Card(
@@ -362,6 +446,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Card(
             child: Column(
               children: [
+                if (user?.isSuperAdmin ?? false)
+                  ListTile(
+                    leading: const Icon(Icons.system_update_alt, color: AppColors.primary),
+                    title: const Text('App Update Management'),
+                    subtitle: const Text('Manage app update notifications'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const AppUpdateScreen()),
+                      );
+                    },
+                  ),
+                if (user?.isSuperAdmin ?? false)
+                  const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.info_outline, color: AppColors.info),
                   title: const Text('About'),

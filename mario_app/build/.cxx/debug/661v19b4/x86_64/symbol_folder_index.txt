@@ -1,1 +1,0 @@
-/Users/apple/Projects/test/cmd/mario_app/build/app/intermediates/cxx/debug/661v19b4/obj/x86_64

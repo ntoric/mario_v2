@@ -33,38 +33,43 @@ class _BillScreenState extends State<BillScreen> {
 
   Future<void> _generateBill() async {
     setState(() => _isGenerating = true);
-    
+
     final auth = context.read<AuthProvider>();
     final data = context.read<DataProvider>();
-    
+
     try {
       final invoiceNo = await data.getNextInvoiceNo(auth.currentStore!.id);
-      
+
       final billData = {
         'orderId': widget.order.id,
         'tableNumber': widget.order.tableNumber,
         'invoiceNo': invoiceNo,
-        'items': widget.order.items.map((i) => {
-          'itemId': i.itemId,
-          'quantity': i.quantity,
-          'unitPrice': i.item.price,
-        }).toList(),
+        'items': widget.order.items
+            .map((i) => {
+                  'itemId': i.itemId,
+                  'quantity': i.quantity,
+                  'unitPrice': i.item.price,
+                })
+            .toList(),
         'subtotal': widget.order.totalAmount - widget.order.taxAmount,
         'taxTotal': widget.order.taxAmount,
         'discount': 0,
         'total': widget.order.totalAmount,
         'paymentMethod': _selectedPaymentMethod,
-        'customerName': _customerNameController.text.isEmpty 
-            ? null 
+        'customerName': _customerNameController.text.isEmpty
+            ? null
             : _customerNameController.text,
         'storeId': auth.currentStore!.id,
       };
-      
+
       if (auth.currentStore?.remoteBillingEnabled == true) {
         await data.enqueueBill(billData);
+      } else {
+        await data.createBill(billData);
       }
-      await data.completeOrder(widget.order.id, paymentMethod: _selectedPaymentMethod);
-      
+      await data.completeOrder(widget.order.id,
+          paymentMethod: _selectedPaymentMethod);
+
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -245,7 +250,9 @@ class _BillScreenState extends State<BillScreen> {
                       children: [
                         Icon(
                           method['icon'],
-                          color: isSelected ? AppColors.primary : AppColors.gray600,
+                          color: isSelected
+                              ? AppColors.primary
+                              : AppColors.gray600,
                         ),
                         const SizedBox(width: 16),
                         Expanded(
@@ -253,8 +260,12 @@ class _BillScreenState extends State<BillScreen> {
                             method['name'],
                             style: TextStyle(
                               fontSize: 16,
-                              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                              color: isSelected ? AppColors.dark : AppColors.gray700,
+                              fontWeight: isSelected
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
+                              color: isSelected
+                                  ? AppColors.dark
+                                  : AppColors.gray700,
                             ),
                           ),
                         ),
@@ -289,7 +300,8 @@ class _BillScreenState extends State<BillScreen> {
                         height: 24,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Colors.white),
                         ),
                       )
                     : const Text(

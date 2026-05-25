@@ -5,108 +5,120 @@ import '../models/user.dart';
 
 class AuthProvider extends ChangeNotifier {
   final BackendService _backend = BackendService();
-  
+
   User? _user;
   Store? _currentStore;
   bool _isLoading = false;
   String? _error;
   bool _isAuthenticated = false;
-  bool _isDbConnected = false;
+  bool _isBackendConnected = false;
 
   User? get user => _user;
   Store? get currentStore => _currentStore;
   bool get isLoading => _isLoading;
   String? get error => _error;
   bool get isAuthenticated => _isAuthenticated;
-  bool get isDbConnected => _isDbConnected;
+  bool get isBackendConnected => _isBackendConnected;
   BackendService get backend => _backend;
 
-  bool get canViewStats => 
+  bool get canViewStats =>
     _user?.role == 'superadmin' || _user?.role == 'business_owner';
+
+  Store? _resolveCurrentStore(User user) {
+    final stores = user.stores;
+    if (stores == null || stores.isEmpty) return null;
+
+    if (user.storeId != null) {
+      for (final store in stores) {
+        if (store.id == user.storeId) {
+          return store;
+        }
+      }
+    }
+
+    return stores.first;
+  }
 
   Future<void> initialize() async {
     await _backend.initialize();
-    
-    // Set up status change listener
-    _backend.database.onConnectionStatusChanged.listen((connected) async {
-      if (_isDbConnected != connected) {
-        _isDbConnected = connected;
-        
-        if (_isDbConnected && !_isAuthenticated) {
-          final prefs = await SharedPreferences.getInstance();
-          final savedToken = prefs.getString('auth_token');
-          if (savedToken != null) {
-            try {
-              _backend.currentToken = savedToken;
-              final isValid = await _backend.validateToken();
-              if (isValid) {
-                _user = User.fromJson(_backend.currentUser!);
-                _isAuthenticated = true;
-                if (_user?.stores != null && _user!.stores!.isNotEmpty) {
-                  _currentStore = _user!.stores!.first;
-                }
-              }
-            } catch (e) {
-              print('Lazy-connect token validation error: $e');
-            }
-          }
-        }
-        notifyListeners();
-      }
-    });
 
-    // Attempt startup connection
-    try {
-      final connected = await _backend.database.connect().timeout(const Duration(seconds: 3));
-      _isDbConnected = connected;
-    } catch (e) {
-      _isDbConnected = false;
-      print('Auto-connect database error on startup: $e');
-    }
-    
-    // Try to load saved token
+    // Try to load saved base URL and check connection
     final prefs = await SharedPreferences.getInstance();
+    final savedUrl = prefs.getString('api_url');
+
+    if (savedUrl != null) {
+      try {
+        final connected = await _backend.connectToBackend(savedUrl);
+        _isBackendConnected = connected;
+      } catch (e) {
+        _isBackendConnected = false;
+        print('Backend connection error on startup: $e');
+      }
+    }
+
+    // Try to load saved token
     final savedToken = prefs.getString('auth_token');
-    
-    if (_isDbConnected && savedToken != null) {
+
+    if (_isBackendConnected && savedToken != null) {
       try {
         _backend.currentToken = savedToken;
         final isValid = await _backend.validateToken();
         if (isValid) {
-          _user = User.fromJson(_backend.currentUser!);
-          _isAuthenticated = true;
-          
-          if (_user?.stores != null && _user!.stores!.isNotEmpty) {
-            _currentStore = _user!.stores!.first;
+          final meData = Map<String, dynamic>.from(_backend.currentUser!);
+          try {
+            final stores = await _backend.api.getStores();
+            meData['stores'] = stores.map((s) => s.toJson()).toList();
+          } catch (_) {
+            // Keep session restore resilient; some payloads already include stores.
           }
+
+          _user = User.fromJson(meData);
+          _isAuthenticated = true;
+          _currentStore = _resolveCurrentStore(_user!);
         }
       } catch (e) {
         _isAuthenticated = false;
         print('Token validation error on startup: $e');
       }
     }
-    
+
     notifyListeners();
   }
 
-  Future<bool> connectDatabase(DatabaseConfig config) async {
+  Future<void> refreshUser() async {
+    if (!_isAuthenticated) return;
+
+    try {
+      final meData = Map<String, dynamic>.from(_backend.currentUser!);
+      final stores = await _backend.api.getStores();
+      meData['stores'] = stores.map((s) => s.toJson()).toList();
+
+      _user = User.fromJson(meData);
+      _currentStore = _resolveCurrentStore(_user!);
+      notifyListeners();
+    } catch (e) {
+      print('Failed to refresh user: $e');
+    }
+  }
+
+  Future<bool> connectBackend(String baseUrl) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-      final connected = await _backend.connectToDatabase(config);
-      _isDbConnected = connected;
-      
+      final connected = await _backend.connectToBackend(baseUrl);
+      _isBackendConnected = connected;
+
       if (!connected) {
-        _error = 'Failed to connect to database. Please check your settings.';
+        _error = 'Failed to connect to backend. Please check the URL.';
       }
-      
+
       _isLoading = false;
       notifyListeners();
       return connected;
     } catch (e) {
-      _error = 'Database connection error: ${e.toString()}';
+      _error = 'Backend connection error: ${e.toString()}';
       _isLoading = false;
       notifyListeners();
       return false;
@@ -114,8 +126,8 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<bool> login(String username, String password) async {
-    if (!_isDbConnected) {
-      _error = 'Database not connected. Please configure database first.';
+    if (!_isBackendConnected) {
+      _error = 'Backend not connected. Please configure backend URL first.';
       notifyListeners();
       return false;
     }
@@ -126,27 +138,26 @@ class AuthProvider extends ChangeNotifier {
 
     try {
       final success = await _backend.login(username, password);
-      
+
       if (success) {
         _user = User.fromJson(_backend.currentUser!);
         _isAuthenticated = true;
-        
-        if (_user?.stores != null && _user!.stores!.isNotEmpty) {
-          _currentStore = _user!.stores!.first;
-        }
-        
+        _currentStore = _resolveCurrentStore(_user!);
+
         // Save token
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('auth_token', _backend.currentToken!);
       } else {
         _error = 'Invalid username or password';
       }
-      
+
       _isLoading = false;
       notifyListeners();
       return success;
     } catch (e) {
-      _error = 'Login error: ${e.toString()}';
+      // Preserve the error message from the backend
+      final errorMessage = e.toString().replaceFirst('Exception: ', '');
+      _error = errorMessage;
       _isLoading = false;
       notifyListeners();
       return false;
@@ -158,21 +169,17 @@ class AuthProvider extends ChangeNotifier {
     _user = null;
     _currentStore = null;
     _isAuthenticated = false;
-    
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('auth_token');
-    
+
     notifyListeners();
   }
 
   Future<void> switchStore(Store store) async {
     try {
-      final result = await _backend.stores.switchStore(_user!.id, store.id);
-      if (result['store'] != null) {
-        _currentStore = Store.fromJson(result['store']);
-      } else {
-        _currentStore = store;
-      }
+      final result = await _backend.api.switchStore(store.id);
+      _currentStore = result;
       notifyListeners();
     } catch (e) {
       _error = e.toString();
@@ -186,19 +193,10 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final success = await _backend.auth.changePassword(
-        _user!.id,
-        currentPassword,
-        newPassword,
-      );
-      
-      if (!success) {
-        _error = 'Current password is incorrect';
-      }
-      
+      await _backend.api.changePassword(currentPassword, newPassword);
       _isLoading = false;
       notifyListeners();
-      return success;
+      return true;
     } catch (e) {
       _error = e.toString();
       _isLoading = false;
@@ -216,5 +214,5 @@ class AuthProvider extends ChangeNotifier {
     // Not used in local backend mode
   }
 
-  String get baseUrl => 'local';
+  String get baseUrl => _backend.api.baseUrl;
 }

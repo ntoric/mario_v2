@@ -78,3 +78,23 @@ Thumbs.db
 *.tmp
 *.temp
 *.cache
+
+# Environment files
+.env
+.env.production
+.env.local
+
+# Database data
+postgres_data/
+
+# Vite cache
+.vite/
+
+# Zip archives
+*.zip
+
+# Go build artifacts
+printer_service/build/
+
+# Docker volumes
+docker-compose.override.yml

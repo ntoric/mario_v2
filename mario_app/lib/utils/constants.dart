@@ -5,7 +5,7 @@ class AppConstants {
   static const String appName = 'Mario App';
   static const String appVersion = '1.0.0';
   
-  static const String defaultApiUrl = 'http://localhost:3001/api';
+  static const String defaultApiUrl = 'https://mario-v2-backend.ntoric.com';
 }
 
 class AppColors {
@@ -255,5 +255,29 @@ class ResponsiveHelper {
     if (width < 900) return width * 0.3;
     if (width < 1200) return width * 0.22;
     return 220;
+  }
+}
+
+class VersionHelper {
+  /// Compares two semantic version strings (e.g., "1.2.3")
+  /// Returns -1 if v1 < v2, 0 if v1 == v2, 1 if v1 > v2
+  static int compareVersions(String v1, String v2) {
+    final parts1 = v1.split('.').map(int.parse).toList();
+    final parts2 = v2.split('.').map(int.parse).toList();
+    
+    // Pad with zeros if versions have different lengths
+    while (parts1.length < 3) parts1.add(0);
+    while (parts2.length < 3) parts2.add(0);
+    
+    for (int i = 0; i < 3; i++) {
+      if (parts1[i] < parts2[i]) return -1;
+      if (parts1[i] > parts2[i]) return 1;
+    }
+    return 0;
+  }
+  
+  /// Returns true if the latest version is newer than the current version
+  static bool isNewerVersion(String current, String latest) {
+    return compareVersions(current, latest) < 0;
   }
 }
