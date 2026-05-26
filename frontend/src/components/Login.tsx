@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Coffee, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../stores';
 import { Button } from '../components/ui/Button';
+import toast from 'react-hot-toast';
 
 interface DefaultStore {
   id: string;
@@ -21,7 +22,14 @@ const Login: React.FC = () => {
   useEffect(() => {
     const fetchDefaultStore = async () => {
       try {
-        const response = await fetch('/api/stores/default');
+        // Use direct fetch without any auth headers
+        const response = await fetch('/api/stores/default', {
+          headers: {
+            'Content-Type': 'application/json',
+            // Explicitly exclude Authorization header
+          },
+          credentials: 'omit', // Don't send cookies
+        });
         if (response.ok) {
           const data = await response.json();
           setDefaultStore(data);
@@ -41,12 +49,15 @@ const Login: React.FC = () => {
     try {
       const success = await login(username, password);
       if (!success) {
+        toast.error('Invalid username or password');
         setError('Invalid username or password');
       }
     } catch (err: any) {
-      console.log(err);
-      console.log(err.message);
-      setError(err.message || 'Login failed. Please try again.');
+      console.error('Login error:', err);
+      console.error('Error message:', err.message);
+      const errorMsg = err.message || 'Login failed. Please try again.';
+      toast.error(errorMsg);
+      setError(errorMsg);
     }
   };
 
@@ -79,7 +90,22 @@ const Login: React.FC = () => {
           <p className="login-subtitle">Sign in to your account</p>
         </div>
         
-        {error && <div className="error-message">{error}</div>}
+        {error && (
+          <div className="error-message" style={{
+            backgroundColor: '#fee2e2',
+            border: '1px solid #fecaca',
+            color: '#dc2626',
+            padding: '12px 16px',
+            borderRadius: '8px',
+            marginBottom: '1rem',
+            fontSize: '0.875rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}>
+            <span style={{ fontWeight: 600 }}>Error:</span> {error}
+          </div>
+        )}
         
         <form onSubmit={handleSubmit}>
           <div className="form-group">
@@ -115,12 +141,6 @@ const Login: React.FC = () => {
             Sign In
           </Button>
         </form>
-        
-        <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
-          <p style={{ color: 'red', fontSize: '0.875rem' }}>
-            {error?error:""}
-          </p>
-        </div>
       </div>
     </div>
   );

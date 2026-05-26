@@ -132,7 +132,7 @@ npm install
 go version
 
 # Build manually
-cd printer_service && go build -o printer-service .
+cd mario-printer && go build -o mario-printer .
 ```
 
 ### Frontend build errors
@@ -259,12 +259,12 @@ release/
 ├── cafe-manager_1.0.0_amd64.deb    # Linux DEB
 └── cafe-manager-1.0.0.x86_64.rpm   # Linux RPM
 
-printer_service/build/
-├── printer-service-darwin-arm64    # macOS ARM64
-├── printer-service-darwin-amd64    # macOS Intel
-├── printer-service-windows-amd64.exe # Windows
-├── printer-service-linux-amd64     # Linux x64
-└── printer-service-linux-arm64     # Linux ARM64
+mario-printer/build/
+├── mario-printer-darwin-arm64    # macOS ARM64
+├── mario-printer-darwin-amd64    # macOS Intel
+├── mario-printer-windows-amd64.exe # Windows
+├── mario-printer-linux-amd64     # Linux x64
+└── mario-printer-linux-arm64     # Linux ARM64
 ```
 
 ## Next Steps

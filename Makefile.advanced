@@ -1,7 +1,7 @@
 # Cafe Manager POS - Advanced Electron Build Makefile
 # Features: Parallel builds, platform detection, CI/CD friendly
 
-.PHONY: all clean install deps frontend backend printer-service electron electron-mac electron-win electron-linux \
+.PHONY: all clean install deps frontend backend mario-printer electron electron-mac electron-win electron-linux \
         release release-ci check-tools verify package dmg pkg deb rpm help
 
 # Application config
@@ -15,7 +15,7 @@ RELEASE_DIR := $(ROOT_DIR)/release
 BUILD_DIR := $(ROOT_DIR)/dist
 FRONTEND_DIR := $(ROOT_DIR)
 BACKEND_DIR := $(ROOT_DIR)/backend
-PRINTER_DIR := $(ROOT_DIR)/printer_service
+PRINTER_DIR := $(ROOT_DIR)/mario-printer
 PRINTER_BUILD_DIR := $(PRINTER_DIR)/build
 ELECTRON_DIR := $(ROOT_DIR)/electron
 
@@ -73,17 +73,17 @@ JOBS := $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
 all: banner clean deps build package-current
 
 # Full release build for all platforms
-release: banner clean deps build printer-service-all electron-all
+release: banner clean deps build mario-printer-all electron-all
 	@$(MAKE) release-summary
 
 # CI/CD optimized build (no interactive output)
-release-ci: deps build printer-service-all
+release-ci: deps build mario-printer-all
 	@echo "Building for CI..."
 	@mkdir -p $(RELEASE_DIR)
 	@$(ELECTRON_BUILDER) $(ELECTRON_FLAGS) --mac --win --linux
 
 # Quick development build (current platform only, skips printer cross-compile)
-dev-build: banner deps build printer-service-current electron-current
+dev-build: banner deps build mario-printer-current electron-current
 
 # ═════════════════════════════════════════════════════════════════════════════
 # BUILD STEPS
@@ -105,8 +105,8 @@ clean:
 	@echo "$(BLUE)→ Cleaning build artifacts...$(NC)"
 	@rm -rf $(BUILD_DIR) $(RELEASE_DIR)
 	@rm -rf $(PRINTER_BUILD_DIR)
-	@rm -f $(PRINTER_DIR)/printer-service
-	@rm -f $(PRINTER_DIR)/printer-service.exe
+	@rm -f $(PRINTER_DIR)/mario-printer
+	@rm -f $(PRINTER_DIR)/mario-printer.exe
 	@echo "$(GREEN)✓ Clean complete$(NC)"
 
 # Install dependencies
@@ -138,46 +138,46 @@ build: frontend backend
 # ═════════════════════════════════════════════════════════════════════════════
 
 # Build printer service for current platform only
-printer-service-current:
+mario-printer-current:
 	@echo "$(BLUE)→ Building printer service for $(PLATFORM)/$(ARCH)...$(NC)"
-	@cd $(PRINTER_DIR) && $(GO) build $(GOLDFLAGS) -o printer-service .
+	@cd $(PRINTER_DIR) && $(GO) build $(GOLDFLAGS) -o mario-printer .
 	@echo "$(GREEN)✓ Printer service built for current platform$(NC)"
 
 # Build printer service for all platforms
-printer-service-all: printer-service-darwin-arm64 printer-service-darwin-amd64 \
-                     printer-service-windows-amd64 printer-service-linux-amd64 \
-                     printer-service-linux-arm64
+mario-printer-all: mario-printer-darwin-arm64 mario-printer-darwin-amd64 \
+                     mario-printer-windows-amd64 mario-printer-linux-amd64 \
+                     mario-printer-linux-arm64
 	@echo "$(GREEN)✓ All printer service binaries built$(NC)"
 
-printer-service-darwin-arm64:
+mario-printer-darwin-arm64:
 	@echo "$(BLUE)  → Building for macOS ARM64...$(NC)"
 	@mkdir -p $(PRINTER_BUILD_DIR)
 	@cd $(PRINTER_DIR) && GOOS=darwin GOARCH=arm64 $(GO) build $(GOLDFLAGS) \
-		-o $(PRINTER_BUILD_DIR)/printer-service-darwin-arm64 .
+		-o $(PRINTER_BUILD_DIR)/mario-printer-darwin-arm64 .
 
-printer-service-darwin-amd64:
+mario-printer-darwin-amd64:
 	@echo "$(BLUE)  → Building for macOS AMD64...$(NC)"
 	@mkdir -p $(PRINTER_BUILD_DIR)
 	@cd $(PRINTER_DIR) && GOOS=darwin GOARCH=amd64 $(GO) build $(GOLDFLAGS) \
-		-o $(PRINTER_BUILD_DIR)/printer-service-darwin-amd64 .
+		-o $(PRINTER_BUILD_DIR)/mario-printer-darwin-amd64 .
 
-printer-service-windows-amd64:
+mario-printer-windows-amd64:
 	@echo "$(BLUE)  → Building for Windows AMD64...$(NC)"
 	@mkdir -p $(PRINTER_BUILD_DIR)
 	@cd $(PRINTER_DIR) && GOOS=windows GOARCH=amd64 $(GO) build $(GOLDFLAGS) \
-		-o $(PRINTER_BUILD_DIR)/printer-service-windows-amd64.exe .
+		-o $(PRINTER_BUILD_DIR)/mario-printer-windows-amd64.exe .
 
-printer-service-linux-amd64:
+mario-printer-linux-amd64:
 	@echo "$(BLUE)  → Building for Linux AMD64...$(NC)"
 	@mkdir -p $(PRINTER_BUILD_DIR)
 	@cd $(PRINTER_DIR) && GOOS=linux GOARCH=amd64 $(GO) build $(GOLDFLAGS) \
-		-o $(PRINTER_BUILD_DIR)/printer-service-linux-amd64 .
+		-o $(PRINTER_BUILD_DIR)/mario-printer-linux-amd64 .
 
-printer-service-linux-arm64:
+mario-printer-linux-arm64:
 	@echo "$(BLUE)  → Building for Linux ARM64...$(NC)"
 	@mkdir -p $(PRINTER_BUILD_DIR)
 	@cd $(PRINTER_DIR) && GOOS=linux GOARCH=arm64 $(GO) build $(GOLDFLAGS) \
-		-o $(PRINTER_BUILD_DIR)/printer-service-linux-arm64 .
+		-o $(PRINTER_BUILD_DIR)/mario-printer-linux-arm64 .
 
 # ═════════════════════════════════════════════════════════════════════════════
 # ELECTRON BUILDS
@@ -212,32 +212,32 @@ package-current:
 # ═════════════════════════════════════════════════════════════════════════════
 
 # macOS DMG
-dmg: build printer-service-all
+dmg: build mario-printer-all
 	@echo "$(BLUE)→ Building macOS DMG...$(NC)"
 	@$(ELECTRON_BUILDER) $(ELECTRON_FLAGS) --mac dmg
 
 # Windows NSIS installer
-nsis: build printer-service-all
+nsis: build mario-printer-all
 	@echo "$(BLUE)→ Building Windows installer...$(NC)"
 	@$(ELECTRON_BUILDER) $(ELECTRON_FLAGS) --win nsis
 
 # Windows portable
-portable: build printer-service-all
+portable: build mario-printer-all
 	@echo "$(BLUE)→ Building Windows portable...$(NC)"
 	@$(ELECTRON_BUILDER) $(ELECTRON_FLAGS) --win portable
 
 # Linux AppImage
-appimage: build printer-service-all
+appimage: build mario-printer-all
 	@echo "$(BLUE)→ Building Linux AppImage...$(NC)"
 	@$(ELECTRON_BUILDER) $(ELECTRON_FLAGS) --linux AppImage
 
 # Linux DEB
-deb: build printer-service-all
+deb: build mario-printer-all
 	@echo "$(BLUE)→ Building Linux DEB package...$(NC)"
 	@$(ELECTRON_BUILDER) $(ELECTRON_FLAGS) --linux deb
 
 # Linux RPM
-rpm: build printer-service-all
+rpm: build mario-printer-all
 	@echo "$(BLUE)→ Building Linux RPM package...$(NC)"
 	@$(ELECTRON_BUILDER) $(ELECTRON_FLAGS) --linux rpm
 
@@ -260,7 +260,7 @@ verify:
 	@test -d $(BUILD_DIR) && echo "  ✓ Frontend build ($(BUILD_DIR))" || echo "  ✗ Frontend build missing"
 	@test -f $(ELECTRON_DIR)/main.js && echo "  ✓ Electron main process" || echo "  ✗ Electron main missing"
 	@test -d $(BACKEND_DIR)/node_modules && echo "  ✓ Backend dependencies" || echo "  ✗ Backend deps missing"
-	@test -f $(PRINTER_DIR)/printer-service && echo "  ✓ Printer service (current platform)" || echo "  ✗ Printer service missing"
+	@test -f $(PRINTER_DIR)/mario-printer && echo "  ✓ Printer service (current platform)" || echo "  ✗ Printer service missing"
 	@echo "$(BLUE)→ Release artifacts:$(NC)"
 	@ls -lh $(RELEASE_DIR)/* 2>/dev/null || echo "  No release files yet"
 
@@ -279,7 +279,7 @@ release-summary:
 	done
 	@echo ""
 	@echo "$(BLUE)Printer Service Binaries:$(NC)"
-	@ls -1 $(PRINTER_BUILD_DIR)/printer-service-* 2>/dev/null | while read f; do \
+	@ls -1 $(PRINTER_BUILD_DIR)/mario-printer-* 2>/dev/null | while read f; do \
 		echo "  • $$(basename $$f)"; \
 	done
 	@echo ""
@@ -295,7 +295,7 @@ dev:
 	@$(NPM) run electron:dev
 
 # Quick test build (current platform, no cross-compile)
-test: clean deps build printer-service-current electron-current verify
+test: clean deps build mario-printer-current electron-current verify
 
 # ═════════════════════════════════════════════════════════════════════════════
 # HELP
@@ -322,8 +322,8 @@ help:
 	@echo "$(GREEN)Individual Components:$(NC)"
 	@echo "  $(YELLOW)make frontend$(NC)           - Build frontend only"
 	@echo "  $(YELLOW)make backend$(NC)            - Prepare backend only"
-	@echo "  $(YELLOW)make printer-service-current$(NC) - Printer for current platform"
-	@echo "  $(YELLOW)make printer-service-all$(NC)    - Printer for all platforms"
+	@echo "  $(YELLOW)make mario-printer-current$(NC) - Printer for current platform"
+	@echo "  $(YELLOW)make mario-printer-all$(NC)    - Printer for all platforms"
 	@echo ""
 	@echo "$(GREEN)Utilities:$(NC)"
 	@echo "  $(YELLOW)make clean$(NC)              - Clean all builds"

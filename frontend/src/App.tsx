@@ -30,12 +30,19 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 };
 
 const AppRoutes: React.FC = () => {
-  const { isAuthenticated, isLoading, user, checkStoreActive, refreshUser, logout } = useAuthStore();
+  const { isAuthenticated, isLoading, user, checkStoreActive, refreshUser, logout, validateToken } = useAuthStore();
   const initialize = useDataStore((state) => state.initialize);
   const stores = useDataStore((state) => state.stores);
   const currentStoreId = useAuthStore((state) => state.currentStoreId);
   const currentStore = stores.find(store => store.id === currentStoreId);
   const [isStoreActive, setIsStoreActive] = useState(true);
+
+  // Validate token on app load to clear invalid persisted state
+  useEffect(() => {
+    if (api.getToken()) {
+      validateToken();
+    }
+  }, [validateToken]);
 
   useEffect(() => {
     if (isAuthenticated && api.getToken()) {

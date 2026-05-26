@@ -1,5 +1,5 @@
 // Auto-generated environment configuration
-// Generated at: 2026-05-25T18:30:11.427Z
+// Generated at: 2026-05-26T10:54:18.287Z
 // DO NOT EDIT - This file is regenerated on each build
 
 const embeddedEnv = {

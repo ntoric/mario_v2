@@ -30,7 +30,7 @@ backend/
 ### Decoupled Layers
 1. **Handler Layer (`internal/handler`)**: Responsible solely for reading and writing JSON payloads, validating route permissions based on context claims, and calling the Repository layer.
 2. **Repository Layer (`internal/repository`)**: Encapsulates all raw SQL queries, data parsing (including high-performance `json_agg` array scans directly into Go slices), and transactional updates.
-3. **Subprocess Printer Layer (`internal/printer`)**: A dedicated subsystem using standard library `os/exec` that manages the lifecycle of the compiled `printer-service` binary.
+3. **Subprocess Printer Layer (`internal/printer`)**: A dedicated subsystem using standard library `os/exec` that manages the lifecycle of the compiled `mario-printer` binary.
 
 ### Key Enhancements Over Express Version
 * **Robust DB Transactions**: The Node.js implementation ran sequential `BEGIN` and `COMMIT` queries over independent connections from the pool, breaking transactional ACID guarantees. This Go version implements proper Go transactions (`*sql.Tx`) ensuring atomic, sequential operations on a single connection.
@@ -85,11 +85,11 @@ After creating the tables, the migrations automatically seed:
 
 ## 🖨️ Thermal Printer Subprocess Management
 
-A critical responsibility of this backend is spawning and managing the local thermal `printer-service` binary process:
+A critical responsibility of this backend is spawning and managing the local thermal `mario-printer` binary process:
 
 1. **Path Resolution**: The manager dynamically detects the host's operating system (`GOOS`) and CPU architecture (`GOARCH`) to locate the appropriate pre-compiled binary:
-   * First searches absolute developer folders under `/Users/apple/Projects/test/cmd/printer_service/build/`.
-   * Falls back to root project directories `../printer_service/` relative to execution path.
+   * First searches absolute developer folders under `/Users/apple/Projects/test/cmd/mario-printer/build/`.
+   * Falls back to root project directories `../mario-printer/` relative to execution path.
 2. **Execution**: Spawns the subprocess with decoupled standard input/outputs, capturing lines of logs and routing them directly to the main Go logger under tags `[Printer Service]` and `[Printer Service Error]`.
 3. **PGID Separation**: The subprocess is launched under a distinct **Process Group ID (PGID)** using `syscall.SysProcAttr`. This guarantees that terminating the parent server cleanly signals and cleans up the child subprocess without leaving orphan background binaries.
 4. **Graceful Shutdown**: Listens for SIGINT/SIGTERM terminal signals. When triggered, the server stops listening to new HTTP connections, gracefully drains current pools, kills the subprocess group, and shuts down safely.
@@ -310,11 +310,11 @@ Audits that a bill was printed.
 
 ### 🖨️ Thermal Printing proxy
 #### `POST /api/print/invoice` (Protected)
-Assembles a complete structured receipt containing totals, tax breakdowns, discount and UPI QR codes, and posts it to the local `printer-service` endpoint `/print`.
+Assembles a complete structured receipt containing totals, tax breakdowns, discount and UPI QR codes, and posts it to the local `mario-printer` endpoint `/print`.
 * **Request Body**: `PrintInvoiceRequest` DTO.
 
 #### `POST /api/print/kot` (Protected)
-Assembles a Kitchen Order Ticket (KOT) listing item quantities and chef instructions and posts it to the `printer-service` endpoint `/print`.
+Assembles a Kitchen Order Ticket (KOT) listing item quantities and chef instructions and posts it to the `mario-printer` endpoint `/print`.
 
 #### `GET /api/print/printers` (Protected)
 Fetches and lists available USB/Network thermal printers detected by the local printing service.

@@ -39,6 +39,8 @@ class ApiService {
     this.token = null;
     localStorage.removeItem('cafe_token');
     localStorage.removeItem('cafe-auth');
+    // Also clear any other auth-related keys
+    localStorage.removeItem('cafe-user');
   }
 
   private async fetch(endpoint: string, options: RequestInit = {}, skipAuthRedirect = false) {
@@ -72,14 +74,20 @@ class ApiService {
 
   // Auth
   async login(username: string, password: string) {
-    const data = await this.fetch('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ username, password }),
-    }, true); // Skip auth redirect on 401
-    if (data.token) {
-      this.setToken(data.token);
+    try {
+      const data = await this.fetch('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ username, password }),
+      }, true); // Skip auth redirect on 401
+      if (data.token) {
+        this.setToken(data.token);
+      }
+      return data;
+    } catch (error) {
+      // Clear any existing token on failed login
+      this.clearToken();
+      throw error;
     }
-    return data;
   }
 
   async getMe() {

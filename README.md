@@ -74,7 +74,7 @@ cd backend && npm run dev
 npm run dev
 
 # Terminal 3 - Printer Service (optional)
-cd printer_service && go run main.go
+cd mario-printer && go run main.go
 ```
 
 Desktop app:
@@ -91,11 +91,11 @@ cd backend && npm run build
 
 2. **Build the printer service:**
 ```bash
-cd printer_service
-go build -o printer_service main.go
-# On Windows: go build -o printer_service.exe main.go
-# On Mac: go build -o printer_service_mac main.go
-# On Linux: go build -o printer_service_linux main.go
+cd mario-printer
+go build -o mario-printer main.go
+# On Windows: go build -o mario-printer.exe main.go
+# On Mac: go build -o mario-printer_mac main.go
+# On Linux: go build -o mario-printer_linux main.go
 ```
 
 3. **Build the Electron app:**
@@ -218,7 +218,7 @@ cafe-order-management/
 │       ├── db/            # Database setup
 │       ├── middleware/    # Auth middleware
 │       └── routes/        # API routes
-├── printer_service/       # Go printer service
+├── mario-printer/         # Go printer service
 │   ├── main.go           # Printer service code
 │   └── postman_collection.json
 ├── electron/              # Electron main process

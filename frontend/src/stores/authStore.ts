@@ -1,7 +1,14 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import { api } from '../services/api';
 import type { User } from '../types';
+
+// Helper to clear persisted auth storage
+const clearAuthStorage = () => {
+  localStorage.removeItem('cafe-auth');
+  localStorage.removeItem('cafe_token');
+  localStorage.removeItem('cafe-user');
+};
 
 interface AuthState {
   user: User | null;
@@ -13,6 +20,8 @@ interface AuthState {
   // Actions
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
+  clearAuth: () => void; // New action to completely clear auth state
+  validateToken: () => Promise<boolean>; // Validate token on app load
   setUser: (user: User) => void;
   setCurrentStore: (storeId: string) => void;
   getCurrentStore: () => { id: string; name: string; branch?: string } | undefined;
@@ -45,6 +54,9 @@ export const useAuthStore = create<AuthState>()(
       currentStoreId: null,
 
       login: async (username: string, password: string) => {
+        // Clear any existing auth state before attempting login
+        get().clearAuth();
+        
         set({ isLoading: true });
         try {
           const data = await api.login(username, password);
@@ -56,7 +68,7 @@ export const useAuthStore = create<AuthState>()(
             
             // Check if business_admin or staff has a store assigned
             if ((data.user.role === 'business_admin' || data.user.role === 'staff') && !defaultStoreId) {
-              api.clearToken();
+              get().clearAuth();
               throw new Error('No store assigned. Please contact your administrator.');
             }
             
@@ -71,11 +83,39 @@ export const useAuthStore = create<AuthState>()(
           return false;
         } catch (error: any) {
           console.error('Login error:', error);
+          // Ensure auth state is cleared on error
+          get().clearAuth();
           // Preserve the error message from the backend
           const errorMessage = error?.message || error?.toString() || 'Login failed. Please try again.';
           throw new Error(errorMessage);
         } finally {
           set({ isLoading: false });
+        }
+      },
+
+      clearAuth: () => {
+        clearAuthStorage();
+        api.clearToken();
+        set({
+          user: null,
+          token: null,
+          isAuthenticated: false,
+          currentStoreId: null,
+        });
+      },
+
+      validateToken: async () => {
+        const { token } = get();
+        if (!token) {
+          get().clearAuth();
+          return false;
+        }
+        try {
+          await api.getMe();
+          return true;
+        } catch (error) {
+          get().clearAuth();
+          return false;
         }
       },
 
@@ -109,13 +149,7 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: () => {
-        api.clearToken();
-        set({
-          user: null,
-          token: null,
-          isAuthenticated: false,
-          currentStoreId: null,
-        });
+        get().clearAuth();
       },
 
       setUser: (user: User) => {

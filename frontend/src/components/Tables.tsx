@@ -10,6 +10,7 @@ import { Button } from '../components/ui/Button';
 import OrderModal from './OrderModal';
 import ParcelOrderModal from './ParcelOrderModal';
 import BillModal from './BillModal';
+import { ConfirmDialog } from './ConfirmDialog';
 import type { Table } from '../types';
 
 const Tables: React.FC = () => {
@@ -218,6 +219,16 @@ const Tables: React.FC = () => {
   const [loadingTableId, setLoadingTableId] = useState<string | null>(null);
   const [isGeneratingBill, setIsGeneratingBill] = useState(false);
   const [isChangingTable, setIsChangingTable] = useState(false);
+  const [printerConfirm, setPrinterConfirm] = useState<{
+    show: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({ show: false, title: '', message: '', onConfirm: () => {} });
+  const [errorDialog, setErrorDialog] = useState<{
+    show: boolean;
+    message: string;
+  }>({ show: false, message: '' });
 
   const isAdmin = user?.role === 'superadmin' || user?.role === 'business_owner' || user?.role === 'business_admin';
 
@@ -302,7 +313,7 @@ const Tables: React.FC = () => {
       setChangeTableDialog(null);
     } catch (error) {
       console.error('Failed to change table:', error);
-      alert('Failed to change table. Please try again.');
+      setErrorDialog({ show: true, message: (error as Error).message || 'Failed to change table. Please try again.' });
     }
   };
 
@@ -312,17 +323,51 @@ const Tables: React.FC = () => {
     const activeOrder = getActiveOrderByTable(billDialogTable.id);
     if (!activeOrder) return;
 
+    const subtotal = activeOrder.items.reduce((sum: number, oi: any) => sum + (oi.item.price * oi.quantity), 0);
+    const tax = activeOrder.items.reduce((sum: number, oi: any) => {
+      const taxPercent = oi.item.taxPercent || 0;
+      return sum + (oi.item.price * oi.quantity * taxPercent / 100);
+    }, 0);
+    const total = subtotal + tax;
+    const invoiceNo = `INV-${Date.now()}`;
+
+    // Pre-check: no printer configured
+    if (!currentStore?.printerName) {
+      setPrinterConfirm({
+        show: true,
+        title: 'Printer Not Available',
+        message: 'No printer is configured in settings. Complete order without printing bill?',
+        onConfirm: async () => {
+          setPrinterConfirm(p => ({ ...p, show: false }));
+          setIsPrinting(true);
+          try {
+            await createBill({
+              orderId: activeOrder.id,
+              tableNumber: billDialogTable.number,
+              invoiceNo,
+              subtotal,
+              taxTotal: tax,
+              discount: 0,
+              total,
+              paymentMethod,
+              customerName: 'Walk-in Customer',
+            });
+            await completeOrder(activeOrder.id, paymentMethod);
+            setBillDialogTable(null);
+          } catch (error) {
+            console.error('Failed to complete order:', error);
+            setErrorDialog({ show: true, message: (error as Error).message || 'Failed to complete order. Please try again.' });
+          } finally {
+            setIsPrinting(false);
+          }
+        },
+      });
+      return;
+    }
+
     setIsPrinting(true);
 
     try {
-      const subtotal = activeOrder.items.reduce((sum: number, oi: any) => sum + (oi.item.price * oi.quantity), 0);
-      const tax = activeOrder.items.reduce((sum: number, oi: any) => {
-        const taxPercent = oi.item.taxPercent || 0;
-        return sum + (oi.item.price * oi.quantity * taxPercent / 100);
-      }, 0);
-      const total = subtotal + tax;
-      const invoiceNo = `INV-${Date.now()}`;
-
       // Create bill
       await createBill({
         orderId: activeOrder.id,
@@ -355,52 +400,76 @@ const Tables: React.FC = () => {
       const cgst = taxable * 0.025;
       const sgst = taxable * 0.025;
 
-      await printerService.printInvoice({
-        type: 'invoice',
-        printer: {
-          type: 'usb',
-          name: currentStore?.printerName || 'Thermal Printer',
-          vendor_id: currentStore?.printerVendorId || '0x0fe6',
-          product_id: currentStore?.printerProductId || '0x811e',
-          paper_width: (currentStore?.invoiceSize as '2inch' | '3inch') || '3inch',
-        },
-        invoice: {
-          store: {
-            name: currentStore?.name || 'Cafe',
-            branch: currentStore?.branch || '',
-            location: currentStore?.location || '',
-            gst_number: currentStore?.gstin || '',
-            fssai_lic_no: currentStore?.fssaiNo || '',
-            phone: currentStore?.phone || '',
-            address: currentStore?.location || '',
+      try {
+        await printerService.printInvoice({
+          type: 'invoice',
+          printer: {
+            type: 'usb',
+            name: currentStore?.printerName || 'Thermal Printer',
+            vendor_id: currentStore?.printerVendorId || '0x0fe6',
+            product_id: currentStore?.printerProductId || '0x811e',
+            paper_width: (currentStore?.invoiceSize as '2inch' | '3inch') || '3inch',
           },
-          customer: {
-            name: 'Walk-in Customer',
-            mobile: '',
+          invoice: {
+            store: {
+              name: currentStore?.name || 'Cafe',
+              branch: currentStore?.branch || '',
+              location: currentStore?.location || '',
+              gst_number: currentStore?.gstin || '',
+              fssai_lic_no: currentStore?.fssaiNo || '',
+              phone: currentStore?.phone || '',
+              address: currentStore?.location || '',
+            },
+            customer: {
+              name: 'Walk-in Customer',
+              mobile: '',
+            },
+            invoice_no: invoiceNo,
+            bill_no: invoiceNo,
+            date: new Date().toLocaleString('en-IN'),
+            items: printItems,
+            summary: {
+              sub_total: taxable,
+              discount: 0,
+              taxable: taxable,
+              cgst: cgst,
+              sgst: sgst,
+              grand_total: total,
+            },
+            payment: {
+              cash: paymentMethod === 'cash' ? total : 0,
+              card: paymentMethod === 'card' ? total : 0,
+              upi: paymentMethod === 'upi' ? total : 0,
+              balance: 0,
+            },
+            payment_mode: paymentMethod,
+            dr_ref: '',
+            footer: ['Thank You Visit Again'],
           },
-          invoice_no: invoiceNo,
-          bill_no: invoiceNo,
-          date: new Date().toLocaleString('en-IN'),
-          items: printItems,
-          summary: {
-            sub_total: taxable,
-            discount: 0,
-            taxable: taxable,
-            cgst: cgst,
-            sgst: sgst,
-            grand_total: total,
+        });
+      } catch (printError) {
+        console.error('Failed to print invoice:', printError);
+        setIsPrinting(false);
+        setPrinterConfirm({
+          show: true,
+          title: 'Print Failed',
+          message: 'Failed to print the bill. Complete order without printing?',
+          onConfirm: async () => {
+            setPrinterConfirm(p => ({ ...p, show: false }));
+            setIsPrinting(true);
+            try {
+              await completeOrder(activeOrder.id, paymentMethod);
+              setBillDialogTable(null);
+            } catch (err) {
+              console.error('Failed to complete order:', err);
+              setErrorDialog({ show: true, message: (err as Error).message || 'Failed to complete order. Please try again.' });
+            } finally {
+              setIsPrinting(false);
+            }
           },
-          payment: {
-            cash: paymentMethod === 'cash' ? total : 0,
-            card: paymentMethod === 'card' ? total : 0,
-            upi: paymentMethod === 'upi' ? total : 0,
-            balance: 0,
-          },
-          payment_mode: paymentMethod,
-          dr_ref: '',
-          footer: ['Thank You Visit Again'],
-        },
-      });
+        });
+        return;
+      }
 
       // Complete order
       await completeOrder(activeOrder.id, paymentMethod);
@@ -409,7 +478,7 @@ const Tables: React.FC = () => {
       setBillDialogTable(null);
     } catch (error) {
       console.error('Failed to print and complete:', error);
-      alert('Failed to print bill. Please try again.');
+      setErrorDialog({ show: true, message: (error as Error).message || 'Failed to complete order. Please try again.' });
     } finally {
       setIsPrinting(false);
     }
@@ -777,6 +846,27 @@ const Tables: React.FC = () => {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={printerConfirm.show}
+        title={printerConfirm.title}
+        message={printerConfirm.message}
+        confirmLabel="Proceed"
+        cancelLabel="Cancel"
+        variant="warning"
+        onConfirm={printerConfirm.onConfirm}
+        onCancel={() => setPrinterConfirm(p => ({ ...p, show: false }))}
+      />
+      <ConfirmDialog
+        isOpen={errorDialog.show}
+        title="Error"
+        message={errorDialog.message}
+        confirmLabel="OK"
+        cancelLabel=""
+        variant="danger"
+        onConfirm={() => setErrorDialog({ show: false, message: '' })}
+        onCancel={() => setErrorDialog({ show: false, message: '' })}
+      />
 
       {/* Change Table Dialog */}
       {changeTableDialog && !confirmTableChange && (

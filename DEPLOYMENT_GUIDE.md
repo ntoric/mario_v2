@@ -191,8 +191,8 @@ Your Cafe Manager POS consists of four components:
    ```json
    "extraResources": [
      {
-       "from": "printer_service/build",
-       "to": "printer_service",
+       "from": "mario-printer/build",
+       "to": "mario-printer",
        "filter": ["**/*"]
      }
    ]
@@ -315,9 +315,9 @@ Before building, ensure you have:
    ```
    Or manually:
    ```bash
-   cd printer_service && ./build.sh
+   cd mario-printer && ./build.sh
    ```
-   This creates binaries in `printer_service/build/`.
+   This creates binaries in `mario-printer/build/`.
 
 3. **Prepare backend** (for bundling):
    ```bash
@@ -439,7 +439,7 @@ The current Electron configuration defaults to **Option 1 (Standalone)** where e
 
 ### Printer service not found
 - Ensure printer binaries are built: `npm run build:printer`
-- Check binaries are in `printer_service/build/`
+- Check binaries are in `mario-printer/build/`
 - Verify executable permissions (Linux/Mac)
 
 ### Database connection fails

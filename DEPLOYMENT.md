@@ -85,7 +85,7 @@ The app includes:
 │  ┌───────────────────────────────────────┐  │
 │  │  Bundled Resources                    │  │
 │  │  - backend-darwin-arm64 (49MB)        │  │
-│  │  - printer-service-darwin-arm64 (20MB)│  │
+│  │  - mario-printer-darwin-arm64 (20MB)  │  │
 │  │  - .env (embedded config)             │  │
 │  └───────────────────────────────────────┘  │
 └─────────────────────────────────────────────┘

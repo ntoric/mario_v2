@@ -8,6 +8,7 @@ const embeddedEnv = require('./env-config');
 
 const isDev = process.env.NODE_ENV === 'development';
 let backendProcess = null;
+let printerProcess = null;
 
 // Start the Go backend server binary directly
 function startBackend() {
@@ -28,11 +29,11 @@ function startBackend() {
   }
 
   const backendPath = isDev 
-    ? path.join(__dirname, '..', 'backend', 'build', binaryName)
+    ? path.join(__dirname, '..', '..', 'backend', 'build', binaryName)
     : path.join(process.resourcesPath, 'backend', binaryName);
   
   if (!fs.existsSync(backendPath)) {
-    console.error('Backend binary not found at:', backendPath);
+    console.warn('Backend binary not found at:', backendPath, '- backend will not be available');
     return null;
   }
 
@@ -75,6 +76,65 @@ function startBackend() {
   return backendProcess;
 }
 
+// Start the Mario Printer binary
+function startPrinter() {
+  let binaryName;
+  
+  // Determine the correct binary based on platform and architecture
+  if (process.platform === 'darwin') {
+    if (process.arch === 'arm64') {
+      binaryName = 'mario-printer-darwin-arm64';
+    } else {
+      binaryName = 'mario-printer-darwin-amd64';
+    }
+  } else if (process.platform === 'win32') {
+    binaryName = 'mario-printer-windows-amd64.exe';
+  } else {
+    console.error('Unsupported platform:', process.platform);
+    return null;
+  }
+
+  const printerPath = isDev 
+    ? path.join(__dirname, '..', '..', 'mario-printer', 'build', binaryName)
+    : path.join(process.resourcesPath, 'printer', binaryName);
+  
+  if (!fs.existsSync(printerPath)) {
+    console.warn('Printer binary not found at:', printerPath, '- printer service will not be available');
+    return null;
+  }
+
+  // Make binary executable on macOS/Linux
+  if (process.platform !== 'win32') {
+    try {
+      fs.chmodSync(printerPath, 0o755);
+    } catch (err) {
+      console.error('Failed to make printer executable:', err);
+    }
+  }
+
+  console.log('Starting Mario Printer at:', printerPath);
+
+  printerProcess = spawn(printerPath, [], {
+    cwd: path.dirname(printerPath),
+    env: process.env,
+    stdio: 'pipe',
+  });
+
+  printerProcess.stdout?.on('data', (data) => {
+    console.log('[Mario Printer]:', data.toString().trim());
+  });
+
+  printerProcess.stderr?.on('data', (data) => {
+    console.error('[Mario Printer Error]:', data.toString().trim());
+  });
+
+  printerProcess.on('exit', (code) => {
+    console.log(`Mario Printer process exited with code ${code}`);
+  });
+
+  return printerProcess;
+}
+
 // Wait for backend to be ready
 async function waitForBackend(maxAttempts = 30) {
   const port = embeddedEnv.PORT || '8088';
@@ -102,6 +162,10 @@ function killChildProcesses() {
   if (backendProcess) {
     backendProcess.kill('SIGTERM');
     backendProcess = null;
+  }
+  if (printerProcess) {
+    printerProcess.kill('SIGTERM');
+    printerProcess = null;
   }
 }
 
@@ -140,10 +204,13 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
-  // Start backend in production
+  // Start backend and printer in production
   if (!isDev) {
     console.log('Starting backend...');
     startBackend();
+    
+    console.log('Starting printer service...');
+    startPrinter();
     
     // Wait for backend to be ready before showing window
     console.log('Waiting for backend to be ready...');

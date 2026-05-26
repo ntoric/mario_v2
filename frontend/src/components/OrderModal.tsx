@@ -3,6 +3,7 @@ import { X, Plus, Minus, Trash2, Receipt, Search, Printer } from 'lucide-react';
 import { useDataStore, useUIStore, useAuthStore } from '../stores';
 import { formatCurrency } from '../utils/currency';
 import { api } from '../services/api';
+import { ConfirmDialog } from './ConfirmDialog';
 import { printerService } from '../services/printer';
 import type { OrderItem, Item } from '../types';
 
@@ -17,6 +18,16 @@ const OrderModal: React.FC = () => {
   const [showBillDialog, setShowBillDialog] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('upi');
   const [isPrinting, setIsPrinting] = useState(false);
+  const [printerConfirm, setPrinterConfirm] = useState<{
+    show: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({ show: false, title: '', message: '', onConfirm: () => {} });
+  const [errorDialog, setErrorDialog] = useState<{
+    show: boolean;
+    message: string;
+  }>({ show: false, message: '' });
 
   const isOpen = orderModal.isOpen;
   const { table, existingOrder, viewOnly } = orderModal.data || {};
@@ -109,11 +120,25 @@ const OrderModal: React.FC = () => {
     }, 0);
   };
 
-  const handleSaveOrder = async () => {
+  const handleSaveOrder = async (skipKot = false) => {
     if (orderItems.length === 0) return;
 
     const totalAmount = calculateTotal();
     const taxAmount = calculateTax();
+
+    // Pre-check: new order with KOT enabled but no printer configured
+    if (!skipKot && !existingOrder && currentStore?.kotPrintEnabled && !currentStore?.printerName) {
+      setPrinterConfirm({
+        show: true,
+        title: 'Printer Not Available',
+        message: 'KOT printing is enabled but no printer is configured in settings. Place order without KOT print?',
+        onConfirm: () => {
+          setPrinterConfirm(p => ({ ...p, show: false }));
+          handleSaveOrder(true);
+        },
+      });
+      return;
+    }
 
     try {
       if (existingOrder) {
@@ -134,7 +159,7 @@ const OrderModal: React.FC = () => {
         });
 
         // Print KOT if enabled for the store
-        if (currentStore?.kotPrintEnabled && newOrder?.id) {
+        if (!skipKot && currentStore?.kotPrintEnabled && newOrder?.id) {
           try {
             await printerService.printKOT({
               type: 'kot',
@@ -176,11 +201,11 @@ const OrderModal: React.FC = () => {
       console.error('Failed to save order:', error);
       // Show error to user
       if (error?.message === 'User or store not authenticated' || error?.message === 'Store not selected') {
-        alert('Session expired. Please log in again.');
+        setErrorDialog({ show: true, message: 'Session expired. Please log in again.' });
         window.location.hash = '/login';
         window.location.reload();
       } else {
-        alert('Failed to save order. Please check your connection and try again.');
+        setErrorDialog({ show: true, message: (error as Error).message || 'Failed to save order. Please check your connection and try again.' });
       }
     }
   };
@@ -188,14 +213,50 @@ const OrderModal: React.FC = () => {
   const handlePrintAndComplete = async () => {
     if (!existingOrder || orderItems.length === 0 || isPrinting) return;
 
+    const subtotal = calculateTotal();
+    const tax = calculateTax();
+    const total = subtotal + tax;
+    const invoiceNo = `INV-${Date.now()}`;
+
+    // Pre-check: no printer configured
+    if (!currentStore?.printerName) {
+      setPrinterConfirm({
+        show: true,
+        title: 'Printer Not Available',
+        message: 'No printer is configured in settings. Complete order without printing bill?',
+        onConfirm: async () => {
+          setPrinterConfirm(p => ({ ...p, show: false }));
+          setIsPrinting(true);
+          try {
+            await createBill({
+              orderId: existingOrder.id,
+              tableNumber: table.number,
+              invoiceNo,
+              subtotal,
+              taxTotal: tax,
+              discount: 0,
+              total,
+              paymentMethod,
+              customerName: 'Walk-in Customer',
+            });
+            await completeOrder(existingOrder.id, paymentMethod);
+            setShowBillDialog(false);
+            closeOrderModal();
+            setOrderItems([]);
+          } catch (error) {
+            console.error('Failed to complete order:', error);
+            setErrorDialog({ show: true, message: (error as Error).message || 'Failed to complete order. Please try again.' });
+          } finally {
+            setIsPrinting(false);
+          }
+        },
+      });
+      return;
+    }
+
     setIsPrinting(true);
 
     try {
-      const subtotal = calculateTotal();
-      const tax = calculateTax();
-      const total = subtotal + tax;
-      const invoiceNo = `INV-${Date.now()}`;
-
       // Create bill
       await createBill({
         orderId: existingOrder.id,
@@ -228,52 +289,78 @@ const OrderModal: React.FC = () => {
       const cgst = taxable * 0.025; // Assuming 5% total tax split as 2.5% CGST + 2.5% SGST
       const sgst = taxable * 0.025;
 
-      await printerService.printInvoice({
-        type: 'invoice',
-        printer: {
-          type: 'usb',
-          name: currentStore?.printerName || 'Thermal Printer',
-          vendor_id: currentStore?.printerVendorId || '0x0fe6',
-          product_id: currentStore?.printerProductId || '0x811e',
-          paper_width: (currentStore?.invoiceSize as '2inch' | '3inch') || '3inch',
-        },
-        invoice: {
-          store: {
-            name: currentStore?.name || 'Cafe',
-            branch: currentStore?.branch || '',
-            location: currentStore?.location || '',
-            gst_number: currentStore?.gstin || '',
-            fssai_lic_no: currentStore?.fssaiNo || '',
-            phone: currentStore?.phone || '',
-            address: currentStore?.location || '',
+      try {
+        await printerService.printInvoice({
+          type: 'invoice',
+          printer: {
+            type: 'usb',
+            name: currentStore?.printerName || 'Thermal Printer',
+            vendor_id: currentStore?.printerVendorId || '0x0fe6',
+            product_id: currentStore?.printerProductId || '0x811e',
+            paper_width: (currentStore?.invoiceSize as '2inch' | '3inch') || '3inch',
           },
-          customer: {
-            name: 'Walk-in Customer',
-            mobile: '',
+          invoice: {
+            store: {
+              name: currentStore?.name || 'Cafe',
+              branch: currentStore?.branch || '',
+              location: currentStore?.location || '',
+              gst_number: currentStore?.gstin || '',
+              fssai_lic_no: currentStore?.fssaiNo || '',
+              phone: currentStore?.phone || '',
+              address: currentStore?.location || '',
+            },
+            customer: {
+              name: 'Walk-in Customer',
+              mobile: '',
+            },
+            invoice_no: invoiceNo,
+            bill_no: invoiceNo,
+            date: new Date().toLocaleString('en-IN'),
+            items: printItems,
+            summary: {
+              sub_total: taxable,
+              discount: 0,
+              taxable: taxable,
+              cgst: cgst,
+              sgst: sgst,
+              grand_total: total,
+            },
+            payment: {
+              cash: paymentMethod === 'cash' ? total : 0,
+              card: paymentMethod === 'card' ? total : 0,
+              upi: paymentMethod === 'upi' ? total : 0,
+              balance: 0,
+            },
+            payment_mode: paymentMethod,
+            dr_ref: '',
+            footer: ['Thank You Visit Again'],
           },
-          invoice_no: invoiceNo,
-          bill_no: invoiceNo,
-          date: new Date().toLocaleString('en-IN'),
-          items: printItems,
-          summary: {
-            sub_total: taxable,
-            discount: 0,
-            taxable: taxable,
-            cgst: cgst,
-            sgst: sgst,
-            grand_total: total,
+        });
+      } catch (printError) {
+        console.error('Failed to print invoice:', printError);
+        setIsPrinting(false);
+        setPrinterConfirm({
+          show: true,
+          title: 'Print Failed',
+          message: 'Failed to print the bill. Complete order without printing?',
+          onConfirm: async () => {
+            setPrinterConfirm(p => ({ ...p, show: false }));
+            setIsPrinting(true);
+            try {
+              await completeOrder(existingOrder.id, paymentMethod);
+              setShowBillDialog(false);
+              closeOrderModal();
+              setOrderItems([]);
+            } catch (err) {
+              console.error('Failed to complete order:', err);
+              setErrorDialog({ show: true, message: (err as Error).message || 'Failed to complete order. Please try again.' });
+            } finally {
+              setIsPrinting(false);
+            }
           },
-          payment: {
-            cash: paymentMethod === 'cash' ? total : 0,
-            card: paymentMethod === 'card' ? total : 0,
-            upi: paymentMethod === 'upi' ? total : 0,
-            balance: 0,
-          },
-          payment_mode: paymentMethod,
-          dr_ref: '',
-          footer: ['Thank You Visit Again'],
-        },
-      });
+        });
+        return;
+      }
 
       // Complete order
       await completeOrder(existingOrder.id, paymentMethod);
@@ -284,7 +371,7 @@ const OrderModal: React.FC = () => {
       setOrderItems([]);
     } catch (error) {
       console.error('Failed to print and complete:', error);
-      alert('Failed to print bill. Please try again.');
+      setErrorDialog({ show: true, message: (error as Error).message || 'Failed to complete order. Please try again.' });
     } finally {
       setIsPrinting(false);
     }
@@ -450,7 +537,7 @@ const OrderModal: React.FC = () => {
           {!viewOnly && (
             <button
               className="btn btn-primary"
-              onClick={handleSaveOrder}
+              onClick={() => handleSaveOrder()}
               disabled={orderItems.length === 0}
             >
               {existingOrder ? 'Update Order' : 'Place Order'}
@@ -460,6 +547,27 @@ const OrderModal: React.FC = () => {
             {viewOnly ? 'Close' : 'Cancel'}
           </button>
         </div>
+
+        <ConfirmDialog
+          isOpen={printerConfirm.show}
+          title={printerConfirm.title}
+          message={printerConfirm.message}
+          confirmLabel="Proceed"
+          cancelLabel="Cancel"
+          variant="warning"
+          onConfirm={printerConfirm.onConfirm}
+          onCancel={() => setPrinterConfirm(p => ({ ...p, show: false }))}
+        />
+        <ConfirmDialog
+          isOpen={errorDialog.show}
+          title="Error"
+          message={errorDialog.message}
+          confirmLabel="OK"
+          cancelLabel=""
+          variant="danger"
+          onConfirm={() => setErrorDialog({ show: false, message: '' })}
+          onCancel={() => setErrorDialog({ show: false, message: '' })}
+        />
 
         {/* Bill Dialog */}
         {showBillDialog && (

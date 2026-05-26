@@ -3,6 +3,7 @@ import { X, Plus, Minus, Trash2, Search, Printer, Package } from 'lucide-react';
 import { useDataStore, useUIStore, useAuthStore } from '../stores';
 import { formatCurrency } from '../utils/currency';
 import { api } from '../services/api';
+import { ConfirmDialog } from './ConfirmDialog';
 import { printerService } from '../services/printer';
 import type { OrderItem, Item } from '../types';
 
@@ -19,6 +20,16 @@ const ParcelOrderModal: React.FC = () => {
   const [customerMobile, setCustomerMobile] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [printerConfirm, setPrinterConfirm] = useState<{
+    show: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({ show: false, title: '', message: '', onConfirm: () => {} });
+  const [errorDialog, setErrorDialog] = useState<{
+    show: boolean;
+    message: string;
+  }>({ show: false, message: '' });
 
   const isOpen = parcelOrderModal.isOpen;
 
@@ -95,8 +106,22 @@ const ParcelOrderModal: React.FC = () => {
     setShowCustomerDialog(true);
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (skipKot = false) => {
     if (orderItems.length === 0 || isSubmitting) return;
+
+    // Pre-check: KOT enabled but no printer configured
+    if (!skipKot && currentStore?.kotPrintEnabled && !currentStore?.printerName) {
+      setPrinterConfirm({
+        show: true,
+        title: 'Printer Not Available',
+        message: 'KOT printing is enabled but no printer is configured in settings. Create order without KOT print?',
+        onConfirm: () => {
+          setPrinterConfirm(p => ({ ...p, show: false }));
+          handleSubmit(true);
+        },
+      });
+      return;
+    }
 
     setIsSubmitting(true);
 
@@ -132,7 +157,7 @@ const ParcelOrderModal: React.FC = () => {
       const createdOrder = await api.createParcelOrder(payload);
 
       // Print KOT if enabled for the store
-      if (currentStore?.kotPrintEnabled && createdOrder?.id) {
+      if (!skipKot && currentStore?.kotPrintEnabled && createdOrder?.id) {
         try {
           await printerService.printKOT({
             type: 'kot',
@@ -241,7 +266,7 @@ const ParcelOrderModal: React.FC = () => {
       closeParcelOrderModal();
     } catch (error) {
       console.error('Failed to create parcel order:', error);
-      alert('Failed to create parcel order. Please try again.');
+      setErrorDialog({ show: true, message: (error as Error).message || 'Failed to create parcel order. Please try again.' });
     } finally {
       setIsSubmitting(false);
     }
@@ -464,7 +489,7 @@ const ParcelOrderModal: React.FC = () => {
               <div className="modal-footer">
                 <button
                   className="btn btn-primary btn-lg"
-                  onClick={handleSubmit}
+                  onClick={() => handleSubmit()}
                   disabled={isSubmitting}
                 >
                   <Printer size={18} />
@@ -481,6 +506,26 @@ const ParcelOrderModal: React.FC = () => {
             </div>
           </div>
         )}
+        <ConfirmDialog
+          isOpen={printerConfirm.show}
+          title={printerConfirm.title}
+          message={printerConfirm.message}
+          confirmLabel="Proceed"
+          cancelLabel="Cancel"
+          variant="warning"
+          onConfirm={printerConfirm.onConfirm}
+          onCancel={() => setPrinterConfirm(p => ({ ...p, show: false }))}
+        />
+        <ConfirmDialog
+          isOpen={errorDialog.show}
+          title="Error"
+          message={errorDialog.message}
+          confirmLabel="OK"
+          cancelLabel=""
+          variant="danger"
+          onConfirm={() => setErrorDialog({ show: false, message: '' })}
+          onCancel={() => setErrorDialog({ show: false, message: '' })}
+        />
       </div>
     </div>
   );

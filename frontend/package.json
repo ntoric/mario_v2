@@ -8,7 +8,6 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-
     "prepare:env": "node scripts/prepare-env.js",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
     "electron:build:mac:arm64": "npm run prepare:env && npm run build && electron-builder --mac --arm64",
@@ -23,6 +22,7 @@
     "lucide-react": "^0.294.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-hot-toast": "^2.6.0",
     "react-router-dom": "^6.20.0",
     "uuid": "^9.0.0",
     "zustand": "^4.4.7"
@@ -53,15 +53,53 @@
       "electron/**/*",
       "package.json"
     ],
+    "extraResources": [
+      {
+        "from": "../backend/build/cafe-backend-darwin-arm64",
+        "to": "backend/cafe-backend-darwin-arm64",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "../backend/build/cafe-backend-darwin-amd64",
+        "to": "backend/cafe-backend-darwin-amd64",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "../backend/build/cafe-backend-windows-amd64.exe",
+        "to": "backend/cafe-backend-windows-amd64.exe",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "../mario-printer/build/mario-printer-darwin-arm64",
+        "to": "printer/mario-printer-darwin-arm64",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "../mario-printer/build/mario-printer-darwin-amd64",
+        "to": "printer/mario-printer-darwin-amd64",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "../mario-printer/build/mario-printer-windows-amd64.exe",
+        "to": "printer/mario-printer-windows-amd64.exe",
+        "filter": ["**/*"]
+      }
+    ],
     "mac": {
       "target": [
         {
           "target": "dmg",
-          "arch": ["arm64", "x64"]
+          "arch": [
+            "arm64",
+            "x64"
+          ]
         },
         {
           "target": "zip",
-          "arch": ["arm64", "x64"]
+          "arch": [
+            "arm64",
+            "x64"
+          ]
         }
       ],
       "category": "public.app-category.business",
@@ -74,11 +112,15 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "zip",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     },
