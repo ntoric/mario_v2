@@ -23,12 +23,12 @@ jobs:
       - name: Build Backend (macOS ARM64)
         run: |
           cd backend
-          GOOS=darwin GOARCH=arm64 go build -o build/cafe-backend-darwin-arm64 ./cmd/server
+          go build -o build/cafe-backend-darwin-arm64 ./cmd/server
       
       - name: Build Printer (macOS ARM64)
         run: |
           cd mario-printer
-          GOOS=darwin GOARCH=arm64 go build -o build/mario-printer-darwin-arm64 .
+          go build -o build/mario-printer-darwin-arm64 .
       
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -70,12 +70,12 @@ jobs:
       - name: Build Backend (macOS AMD64)
         run: |
           cd backend
-          GOOS=darwin GOARCH=amd64 go build -o build/cafe-backend-darwin-amd64 ./cmd/server
+          go build -o build/cafe-backend-darwin-amd64 ./cmd/server
       
       - name: Build Printer (macOS AMD64)
         run: |
           cd mario-printer
-          GOOS=darwin GOARCH=amd64 go build -o build/mario-printer-darwin-amd64 .
+          go build -o build/mario-printer-darwin-amd64 .
       
       - name: Setup Node.js
         uses: actions/setup-node@v4
